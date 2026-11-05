@@ -32,7 +32,7 @@ for tool in make g++ pkg-config hyprctl python3; do
 done
 pkg-config --exists hyprland 2>/dev/null || missing+=("hyprland headers (pkg-config hyprland)")
 if (( ${#missing[@]} )); then
-  fail "missing: ${missing[*]} (on Arch: sudo pacman -S --needed base-devel pkgconf hyprland)"
+  fail "missing: ${missing[*]} (install the base-devel, pkgconf and hyprland packages)"
 fi
 
 step "Building the native snap plugin"
