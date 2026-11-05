@@ -22,7 +22,7 @@ Pinned and running apps sit side by side, with a dot for every open window. The 
 
 ### Minimize into the dock (genie effect)
 
-Minimizing a window pours it into the dock in a funnel, like macOS's genie effect. The window waits there as a snapshot with its app's icon, between the apps and the Downloads stack. A click brings it back out the same way, to exactly where it was.
+Minimizing a window pours it into the dock in a funnel, like macOS's genie effect: the window bends into a smooth funnel and slides down it into its slot, drawn on the GPU as one continuously curved surface. The window waits there as a snapshot with its app's icon, between the apps and the Downloads stack. A click brings it back out the same way, to exactly where it was.
 
 This works for every way of minimizing: the titlebar button, Super + M and the dock menu.
 
@@ -129,6 +129,7 @@ The built-in Omarchy dock comes back once nov.dock is removed. The only state no
 | Path | What |
 |---|---|
 | `manifest.json`, `*.qml`, `DockModel.js`, `i18n/` | The shell plugin (dock, app grid, Downloads stack, bar widget, `GenieOverlay.qml` for the minimize animation) |
+| `shaders/` | The genie effect's vertex and fragment shaders, with the compiled `.qsb` files the dock loads. `build.sh` recompiles them with Qt's `qsb`; only needed after editing them |
 | `desktop.py` | Helper for window state, borders, downloads and new windows |
 | `native/` | The Hyprland plugin (C++): edge snapping, Super + click on the dock, the Alt + Tab and screensaver fixes. Build with `make`, test with `make test` |
 | `hypr/nov-floating-dock.lua` | Loads the native plugin, sets up Alt + arrow keys, the border rule and scrolling under the pointer |
