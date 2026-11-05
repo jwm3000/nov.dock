@@ -5,6 +5,7 @@ An Omarchy shell plugin (cloned from `omarchy.dock`) for floating workspaces:
 - **Dock**: pinned and running apps, with window dots. Super+click on an icon opens a new window of that app.
 - **Minimize into the dock**: windows pour into the dock in a macOS-style funnel ("genie") and wait there as snapshots with their app icon, between the apps and the Downloads stack. A click brings them back out the same way. This covers every way of minimizing: the titlebar button, Super+M and the dock menu.
 - **Maximized windows and Alt+Tab**: when focus comes back to a maximized window, it is in front again rather than behind the window that was focused over it.
+- **Screensaver on two monitors**: the menu bar and dock stay hidden under the screensaver on every monitor (works around Hyprland 0.56 fading a second monitor's bar back in over a fullscreen special workspace).
 - **Downloads stack**: fans out macOS-style, with the newest download right above the stack. Images get thumbnails, text files open in the editor (nvim), and everything else opens in its default app.
 - **Edge snapping** (native Hyprland plugin): drag a window to the left or right edge and it fills that half, stopping above the dock. Drag it to the top edge to maximize it.
 - **Keyboard snapping** (only while a floating window has focus):

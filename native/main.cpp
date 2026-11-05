@@ -3,6 +3,7 @@
 #include "geometry.hpp"
 
 #include <hyprland/src/Compositor.hpp>
+#include <hyprland/src/animation/WorkspaceAnimationController.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
 #include <hyprland/src/config/values/types/BoolValue.hpp>
@@ -715,9 +716,43 @@ namespace {
         });
     }
 
+    // A fullscreen window on a special workspace (the screensaver opens one
+    // per monitor) should fade the monitor's top layers, the bar and the dock,
+    // out of sight. Hyprland 0.56 re-derives that fade from the monitor's
+    // regular workspace on focus and workspace changes elsewhere, so with two
+    // monitors the laptop's bar comes back over its screensaver. Each frame, a
+    // monitor showing a special workspace with a real fullscreen window gets
+    // the fade put back, once, whenever a top layer has drifted back in.
+    void keepTopLayersUnderSpecialFullscreen(const PHLMONITOR& monitor) {
+        if (!monitor)
+            return;
+        const auto special = monitor->m_activeSpecialWorkspace;
+        if (!special)
+            return;
+        const auto fullscreen = Fullscreen::controller()->getFullscreenWindow(special, true);
+        if (!fullscreen || !Fullscreen::controller()->isFullscreen(fullscreen, Fullscreen::FSMODE_FULLSCREEN))
+            return;
+        bool drifted = false;
+        for (const auto& layer : Desktop::layerState()->layers()) {
+            if (!layer || !layer->m_mapped || layer->m_layer != 2 /* top */ || layer->m_monitor.lock() != monitor)
+                continue;
+            if (layer->m_aboveFullscreen || layer->alpha()[Desktop::View::LS_ALPHA_FADE]->goal() > 0.F) {
+                layer->m_aboveFullscreen = false;
+                drifted                  = true;
+            }
+        }
+        if (drifted)
+            Animation::Workspace::setFullscreenFadeAnimation(special, Animation::Workspace::ANIMATION_TYPE_IN);
+    }
+
     void onRenderStage(const eRenderStage stageValue) {
         if (!state)
             return;
+
+        if (stageValue == RENDER_BEGIN) {
+            keepTopLayersUnderSpecialFullscreen(g_pHyprRenderer->renderData().pMonitor.lock());
+            return;
+        }
 
         if (stageValue != RENDER_POST_WINDOWS || !state->preview)
             return;
