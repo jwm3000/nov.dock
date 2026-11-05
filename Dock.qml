@@ -175,8 +175,60 @@ Item {
   // "menu" kind, so the dock keeps its own app library as a fallback.
   readonly property var appLibrary: shell && shell.appLibrary ? shell.appLibrary : localAppLibrary
   OmarchyServices.AppLibrary { id: localAppLibrary }
-  readonly property var dockConfig: shell && shell.shellConfig && shell.shellConfig.dock ? shell.shellConfig.dock : ({})
-  readonly property var defaultDockConfig: shell && shell.defaultsConfig && shell.defaultsConfig.dock ? shell.defaultsConfig.dock : ({})
+  // The dock's settings (pins, position, auto-hide) live under "dock" in the
+  // user's shell.json, with Omarchy's shell.json as the defaults. A user
+  // plugin's scoped shell API does not hand out the shell config, so the dock
+  // reads both files itself and follows them as they change. Without this
+  // the dock saw no pins at all, and keeping one app in the dock saved that
+  // app alone, dropping every other pin.
+  readonly property string userShellConfigPath: Quickshell.env("HOME") + "/.config/omarchy/shell.json"
+  readonly property string defaultShellConfigPath: (Quickshell.env("OMARCHY_PATH") || "/usr/share/omarchy") + "/config/omarchy/shell.json"
+  property var userDockConfig: null
+  property var defaultsDockConfig: null
+
+  function dockSection(text) {
+    try {
+      var parsed = JSON.parse(String(text || ""))
+      return parsed && typeof parsed === "object" && parsed.dock && typeof parsed.dock === "object" ? parsed.dock : ({})
+    } catch (error) {
+      return null
+    }
+  }
+
+  FileView {
+    id: userShellConfigFile
+    path: root.userShellConfigPath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      var section = root.dockSection(text())
+      // A half-written or broken file keeps the last good settings.
+      if (section !== null) root.userDockConfig = section
+    }
+    onLoadFailed: function(error) { root.userDockConfig = ({}) }
+  }
+
+  FileView {
+    id: defaultShellConfigFile
+    path: root.defaultShellConfigPath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      var section = root.dockSection(text())
+      if (section !== null) root.defaultsDockConfig = section
+    }
+    onLoadFailed: function(error) { root.defaultsDockConfig = ({}) }
+  }
+
+  readonly property var dockConfig: root.userDockConfig
+    || (shell && shell.shellConfig && shell.shellConfig.dock ? shell.shellConfig.dock : ({}))
+  readonly property var defaultDockConfig: root.defaultsDockConfig
+    || (shell && shell.defaultsConfig && shell.defaultsConfig.dock ? shell.defaultsConfig.dock : ({}))
+  // Until shell.json has been read the pins are unknown: nothing may be saved
+  // from them, or the save would overwrite the real ones.
+  readonly property bool pinsKnown: root.userDockConfig !== null && root.defaultsDockConfig !== null
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
@@ -442,6 +494,7 @@ Item {
 
   // A reorder shows at once; the saved config catches up after.
   function savePins(pins) {
+    if (!root.pinsKnown) return
     root.pendingPins = pins
     Util.execDetached("omarchy-dock pinned " + pins.map(function(id) { return Util.shellQuote(id) }).join(" "))
   }
@@ -459,7 +512,7 @@ Item {
   // Keeping an app in the dock puts it at the end; taking one out leaves it in
   // its slot while it still runs.
   function setPinned(key, pinned) {
-    if (!key) return
+    if (!key || !root.pinsKnown) return
     if (pinned) {
       root.placeAt(key, root.shownKeys().length)
     } else {
