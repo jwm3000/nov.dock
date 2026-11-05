@@ -3,6 +3,8 @@
 An Omarchy shell plugin (cloned from `omarchy.dock`) for floating workspaces:
 
 - **Dock**: pinned and running apps, with window dots. Super+click on an icon opens a new window of that app.
+- **Minimize into the dock**: windows pour into the dock in a macOS-style funnel ("genie") and wait there as snapshots with their app icon, between the apps and the Downloads stack. A click brings them back out the same way. This covers every way of minimizing: the titlebar button, Super+M and the dock menu.
+- **Maximized windows and Alt+Tab**: when focus comes back to a maximized window, it is in front again rather than behind the window that was focused over it.
 - **Downloads stack**: fans out macOS-style, with the newest download right above the stack. Images get thumbnails, text files open in the editor (nvim), and everything else opens in its default app.
 - **Edge snapping** (native Hyprland plugin): drag a window to the left or right edge and it fills that half, stopping above the dock. Drag it to the top edge to maximize it.
 - **Keyboard snapping** (only while a floating window has focus):
@@ -53,7 +55,7 @@ Run `install.sh` again after every Hyprland update too: the native plugin only l
 
 | Path | What |
 |---|---|
-| `manifest.json`, `*.qml`, `DockModel.js`, `i18n/` | the shell plugin |
+| `manifest.json`, `*.qml`, `DockModel.js`, `i18n/` | the shell plugin (`GenieOverlay.qml`: the minimize animation) |
 | `desktop.py` | helper: window state, borders, downloads, new windows |
 | `native/` | Hyprland snap plugin (C++), `make` / `make test` |
 | `hypr/nov-floating-dock.lua` | loads the native plugin, Alt+arrow keys, border rule |

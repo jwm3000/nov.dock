@@ -14,6 +14,7 @@
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/desktop/state/ViewState.hpp>
 #include <hyprland/src/desktop/state/LayerState.hpp>
+#include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/LayerSurface.hpp>
 #include <hyprland/src/desktop/view/WLSurface.hpp>
 #include <hyprland/src/devices/IKeyboard.hpp>
@@ -118,6 +119,7 @@ namespace {
         CHyprSignalListener       renderListener;
         CHyprSignalListener       windowDestroyListener;
         CHyprSignalListener       windowFloatingListener;
+        CHyprSignalListener       windowActiveListener;
         bool                      swallowRelease = false;
     };
 
@@ -657,6 +659,37 @@ namespace {
         return true;
     }
 
+    // Hyprland draws a window focused over a maximized one above it, and keeps
+    // doing so after focus returns (Alt+Tab, a click): the maximized window has
+    // focus but stays hidden behind it. On a floating workspace, focusing the
+    // maximized window sends the others below it, in their own order.
+    void onWindowActive(const PHLWINDOW& window) {
+        if (!state || !Desktop::View::validMapped(window) || !window->m_ruleApplicator ||
+            !window->m_ruleApplicator->m_tagKeeper.isTagged("omarchy-floating-workspace"))
+            return;
+        // An earlier build switched this off for windows under a maximized
+        // one; give it back as they are used.
+        window->m_allowedOverFullscreen = true;
+        const auto workspace = window->m_workspace;
+        if (!workspace || !Fullscreen::controller()->isFullscreen(window, Fullscreen::FSMODE_MAXIMIZED))
+            return;
+        // The list runs bottom to top; sending the topmost down first keeps
+        // the others' order among themselves.
+        const auto windows = Desktop::windowState()->windows();
+        bool       changed = false;
+        for (auto it = windows.rbegin(); it != windows.rend(); ++it) {
+            const auto& other = *it;
+            if (!other || other == window || !other->m_isMapped || other->m_workspace != workspace || other->m_pinned)
+                continue;
+            Desktop::windowState()->lower(other);
+            changed = true;
+        }
+        if (changed) {
+            if (const auto monitor = window->m_monitor.lock())
+                g_pHyprRenderer->damageMonitor(monitor);
+        }
+    }
+
     void onMouseButton(const IPointer::SButtonEvent event, Event::SCallbackInfo& info) {
         if (!state || event.button != BTN_LEFT)
             return;
@@ -815,6 +848,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         if (state->drag && state->drag->target && state->drag->target->window() == window.lock())
             resetDrag();
     });
+    state->windowActiveListener = Event::bus()->m_events.window.active.listen([](PHLWINDOW window, Desktop::eFocusReason) { onWindowActive(window); });
     state->windowFloatingListener = Event::bus()->m_events.window.floating.listen([](PHLWINDOW window) {
         if (state && Desktop::View::validMapped(window) && window->m_target && !window->m_target->floating())
             forgetRestoreBox(window);
@@ -836,5 +870,6 @@ APICALL EXPORT void PLUGIN_EXIT() {
     state->renderListener.reset();
     state->windowDestroyListener.reset();
     state->windowFloatingListener.reset();
+    state->windowActiveListener.reset();
     state.reset();
 }

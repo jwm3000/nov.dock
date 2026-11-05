@@ -134,10 +134,12 @@ PanelWindow {
     if (across < 0 || across > depth) return
     var slot = Math.floor(along / window.slotSize)
     var count = window.dock.itemModel.count
-    if (slot !== count + 1) window.closeMenu()
+    var minimized = minimizedRepeater.count
+    if (slot !== count + minimized + 1) window.closeMenu()
     if (slot === 0) window.dock.openApps()
     else if (slot >= 1 && slot <= count) window.dock.newWindow(window.dock.itemFor(window.dock.itemModel.get(slot - 1).key))
-    else if (slot === count + 1) window.toggleDownloads()
+    else if (slot > count && slot <= count + minimized) minimizedRepeater.itemAt(slot - count - 1).restore()
+    else if (slot === count + minimized + 1) window.toggleDownloads()
   }
 
   // The slot a point along the dock falls before, counting from the first app.
@@ -344,7 +346,7 @@ PanelWindow {
     Grid {
       id: slots
       anchors.centerIn: parent
-      columns: window.vertical ? 1 : appRepeater.count + 2
+      columns: window.vertical ? 1 : appRepeater.count + minimizedRepeater.count + 2
 
       AppsSlot {}
 
@@ -353,6 +355,13 @@ PanelWindow {
         model: window.dock ? window.dock.itemModel : null
 
         delegate: AppSlot {}
+      }
+
+      // Minimized windows, oldest first, between the apps and Downloads.
+      Repeater {
+        id: minimizedRepeater
+        model: window.dock ? window.dock.minimizedModel : null
+        delegate: MinimizedSlot {}
       }
 
       Slot {
@@ -365,14 +374,7 @@ PanelWindow {
           }
           window.toggleDownloads()
         }
-        Rectangle {
-          x: window.vertical ? window.iconInset : 0
-          y: window.vertical ? 0 : window.iconInset
-          width: window.vertical ? window.iconSize : 1
-          height: window.vertical ? 1 : window.iconSize
-          color: Commons.Color.bar.text
-          opacity: 0.25
-        }
+        DockSeparator { visible: minimizedRepeater.count === 0 }
         Image {
           anchors.centerIn: parent
           width: window.iconSize; height: window.iconSize
@@ -392,6 +394,131 @@ PanelWindow {
         }
       }
     }
+  }
+
+  // The line between the apps and what follows them: minimized windows and
+  // Downloads. It sits on the leading edge of the first of those slots.
+  component DockSeparator: Rectangle {
+    x: window.vertical ? window.iconInset : 0
+    y: window.vertical ? 0 : window.iconInset
+    width: window.vertical ? window.iconSize : 1
+    height: window.vertical ? 1 : window.iconSize
+    color: Commons.Color.bar.text
+    opacity: 0.25
+  }
+
+  // A minimized window: a snapshot of it, with its app's icon on the corner.
+  // A click brings it back out, through the genie.
+  component MinimizedSlot: Slot {
+    id: minSlot
+    required property int index
+    required property string address
+    readonly property var modelData: window.dock ? window.dock.minimizedFor(address) : null
+    readonly property bool pouring: window.genieAddress === address
+
+    DockSeparator { visible: minSlot.index === 0 }
+
+    function restore() {
+      if (!minSlot.modelData) return
+      window.closeMenu()
+      window.dock.bringForward({ address: "0x" + minSlot.address, minimized: true, toplevel: minSlot.modelData.toplevel })
+    }
+
+    mouse.onClicked: function(event) {
+      if (!minSlot.modelData) return
+      if (event.button === Qt.RightButton) {
+        var app = window.dock.itemFor(minSlot.modelData.key)
+        if (app) window.openMenu(app, minSlot)
+        return
+      }
+      minSlot.restore()
+    }
+
+    Item {
+      id: thumbBox
+      x: window.iconInset
+      y: window.iconInset
+      width: window.iconSize
+      height: window.iconSize
+      scale: minSlot.hovered ? 1.15 : 1
+      transformOrigin: window.popOrigin
+      opacity: minSlot.pouring ? 0 : 1
+      Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+      Behavior on opacity { NumberAnimation { duration: Style.duration(140) } }
+
+      ScreencopyView {
+        id: thumb
+        readonly property real aspect: sourceSize.height > 0 ? sourceSize.width / sourceSize.height : 1.6
+        anchors.centerIn: parent
+        width: aspect >= 1 ? parent.width : parent.height * aspect
+        height: aspect >= 1 ? parent.width / aspect : parent.height
+        captureSource: minSlot.modelData ? minSlot.modelData.toplevel : null
+        live: false
+      }
+      Rectangle {
+        anchors.fill: thumb
+        color: "transparent"
+        border.width: 1
+        border.color: Qt.rgba(Commons.Color.bar.text.r, Commons.Color.bar.text.g, Commons.Color.bar.text.b, 0.25)
+        radius: 2
+      }
+      Image {
+        width: Math.round(window.iconSize * 0.45); height: width
+        anchors.right: parent.right; anchors.bottom: parent.bottom
+        anchors.rightMargin: -Math.round(width * 0.2); anchors.bottomMargin: -Math.round(width * 0.2)
+        sourceSize: Qt.size(width * 2, height * 2)
+        source: window.dock && minSlot.modelData ? window.dock.iconFor({ key: minSlot.modelData.key }) : ""
+        fillMode: Image.PreserveAspectFit
+        smooth: true
+        mipmap: true
+      }
+    }
+  }
+
+  // The genie into and out of the dock, on this screen.
+  property string genieAddress: ""
+  GenieOverlay {
+    id: genie
+    screen: window.screen
+    edge: window.position
+  }
+
+  // A slot's rectangle in screen coordinates, as the genie needs it.
+  function slotScreenRect(slot) {
+    if (!slot) return null
+    var at = window.origin()
+    return Qt.rect(at.x + body.x + slots.x + slot.x + window.iconInset, at.y + body.y + slots.y + slot.y + window.iconInset,
+                   window.iconSize, window.iconSize)
+  }
+  function minimizedSlotRect(address) {
+    for (var i = 0; i < minimizedRepeater.count; i++) {
+      var slot = minimizedRepeater.itemAt(i)
+      if (slot && slot.address === address) return window.slotScreenRect(slot)
+    }
+    return window.slotScreenRect(downloadsSlot)
+  }
+  function toScreen(globalRect) {
+    return Qt.rect(globalRect.x - window.screen.x, globalRect.y - window.screen.y, globalRect.width, globalRect.height)
+  }
+
+  function genieMinimize(toplevel, address, globalRect) {
+    if (!window.shown) return
+    window.revealed = true
+    window.genieAddress = address
+    genie.play(toplevel, window.toScreen(globalRect), function() { return window.minimizedSlotRect(address) }, false, function() {
+      window.genieAddress = ""
+      if (window.autohide) hideTimer.restart()
+    })
+  }
+
+  function genieRestore(toplevel, address, globalRect, done) {
+    if (!window.shown) { done(); return }
+    window.genieAddress = address
+    var slotRect = window.minimizedSlotRect(address)
+    genie.play(toplevel, window.toScreen(globalRect), function() { return slotRect }, true, function() {
+      window.genieAddress = ""
+      done()
+    })
   }
 
   component Slot: Item {

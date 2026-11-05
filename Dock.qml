@@ -49,6 +49,121 @@ Item {
       root.borderlessFile, root.helper, address])
   }
 
+  // Minimized windows get a slot of their own between the apps and the
+  // Downloads stack, in the order they were minimized, macOS-style. They are
+  // kept as a ListModel keyed by address, like the apps, so a slot (and its
+  // snapshot) survives other windows coming and going.
+  property var minimizedOrder: []
+  property alias minimizedModel: minimizedModel
+  ListModel { id: minimizedModel }
+
+  function bareAddress(address) { return String(address || "").replace(/^0x/, "") }
+
+  readonly property var minimizedWindows: {
+    var order = root.minimizedOrder
+    var out = []
+    var toplevels = Hyprland.toplevels.values
+    for (var i = 0; i < toplevels.length; i++) {
+      var workspace = toplevels[i].workspace
+      var wayland = toplevels[i].wayland
+      if (!workspace || !wayland || wayland.parent || !DockModel.isMinimizedWorkspace(workspace.name)) continue
+      var entry = wayland.appId ? root.entryForAppId(wayland.appId) : null
+      out.push({
+        address: root.bareAddress(toplevels[i].address),
+        key: entry ? entry.id : String(wayland.appId || ""),
+        toplevel: wayland,
+        minimized: true,
+        workspaceId: -1
+      })
+    }
+    out.sort(function(a, b) { return order.indexOf(a.address) - order.indexOf(b.address) })
+    return out
+  }
+
+  readonly property var minimizedByAddress: {
+    var byAddress = {}
+    for (var i = 0; i < root.minimizedWindows.length; i++) byAddress[root.minimizedWindows[i].address] = root.minimizedWindows[i]
+    return byAddress
+  }
+
+  function minimizedFor(address) { return root.minimizedByAddress[root.bareAddress(address)] || null }
+
+  onMinimizedWindowsChanged: syncMinimizedModel()
+  function syncMinimizedModel() {
+    var keys = root.minimizedWindows.map(function(window) { return window.address })
+    for (var i = 0; i < keys.length; i++) {
+      if (i < minimizedModel.count && minimizedModel.get(i).address === keys[i]) continue
+      var found = -1
+      for (var j = i + 1; j < minimizedModel.count; j++) {
+        if (minimizedModel.get(j).address === keys[i]) { found = j; break }
+      }
+      if (found >= 0) minimizedModel.move(found, i, 1)
+      else minimizedModel.insert(i, { address: keys[i] })
+    }
+    if (minimizedModel.count > keys.length) minimizedModel.remove(keys.length, minimizedModel.count - keys.length)
+  }
+
+  // Window geometry straight from Hyprland, for the genie: the toplevel list
+  // Quickshell keeps does not follow a window being dragged around.
+  property var geometryRequests: []
+  function clientGeometry(address, callback) {
+    root.geometryRequests.push({ address: root.bareAddress(address), callback: callback })
+    if (!geometryProc.running) geometryProc.running = true
+  }
+  Process {
+    id: geometryProc
+    command: ["hyprctl", "clients", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var clients = []
+        try { clients = JSON.parse(text) } catch (error) {}
+        var requests = root.geometryRequests
+        root.geometryRequests = []
+        for (var i = 0; i < requests.length; i++) {
+          var found = null
+          for (var j = 0; j < clients.length; j++) {
+            if (root.bareAddress(clients[j].address) === requests[i].address) { found = clients[j]; break }
+          }
+          requests[i].callback(found && found.at && found.size
+            ? Qt.rect(found.at[0], found.at[1], found.size[0], found.size[1]) : null)
+        }
+      }
+    }
+    onExited: if (root.geometryRequests.length > 0) Qt.callLater(function() { geometryProc.running = true })
+  }
+
+  // The dock on the screen a global point is on, or on the focused screen.
+  function dockAt(globalX, globalY) {
+    var windows = docks.instances
+    for (var i = 0; i < windows.length; i++) {
+      var screen = windows[i].screen
+      if (globalX >= screen.x && globalX < screen.x + screen.width && globalY >= screen.y && globalY < screen.y + screen.height)
+        return windows[i]
+    }
+    return root.focusedDock()
+  }
+  function focusedDock() {
+    var monitor = Hyprland.focusedMonitor
+    var windows = docks.instances
+    for (var i = 0; i < windows.length; i++) if (windows[i].monitor === monitor) return windows[i]
+    return windows.length > 0 ? windows[0] : null
+  }
+
+  // A window just went to the minimized workspace, however it was sent there
+  // (its titlebar, Super+M, the dock menu): pour it into its new slot.
+  function onMinimized(address) {
+    address = root.bareAddress(address)
+    var order = root.minimizedOrder.filter(function(other) { return other !== address })
+    order.push(address)
+    root.minimizedOrder = order
+    root.clientGeometry(address, function(rect) {
+      var window = root.minimizedFor(address)
+      if (!rect || !window) return
+      var dock = root.dockAt(rect.x + rect.width / 2, rect.y + rect.height / 2)
+      if (dock) dock.genieMinimize(window.toplevel, address, rect)
+    })
+  }
+
   function minimize(window) {
     var address = String(window.address || "")
     if (address.indexOf("0x") !== 0) address = "0x" + address
@@ -266,6 +381,20 @@ Item {
     var target = "window = \"address:" + address + "\""
     var steps = []
     var after = []
+    if (window.minimized && !window.genieDone) {
+      // Out of the slot first, then the real window takes the snapshot's place.
+      var bare = root.bareAddress(address)
+      var minimizedWindow = root.minimizedFor(bare)
+      var dock = root.focusedDock()
+      if (minimizedWindow && dock) {
+        root.clientGeometry(bare, function(rect) {
+          var again = Object.assign({}, window, { genieDone: true })
+          if (!rect) { root.bringForward(again); return }
+          dock.genieRestore(minimizedWindow.toplevel, bare, rect, function() { root.bringForward(again) })
+        })
+        return
+      }
+    }
     if (window.minimized) {
       var monitor = Hyprland.focusedMonitor
       var workspace = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
@@ -409,8 +538,12 @@ Item {
       // Borderless is global: windows that open on, or move to, a floating
       // workspace follow it. The helper only runs while it is switched on.
       if (name === "openwindow" || name === "movewindowv2") {
-        var address = String(event.data || "").split(",")[0]
-        if (/^[0-9a-fA-F]+$/.test(address)) root.applyBorders("0x" + address.replace(/^0x/, ""))
+        var fields = String(event.data || "").split(",")
+        var address = fields[0]
+        if (/^[0-9a-fA-F]+$/.test(address)) {
+          if (name === "movewindowv2" && DockModel.isMinimizedWorkspace(fields.slice(2).join(","))) root.onMinimized(address)
+          else root.applyBorders("0x" + address.replace(/^0x/, ""))
+        }
       }
       if (name === "configreloaded") {
         root.refresh()
@@ -435,6 +568,11 @@ Item {
       root.applyBorders("")
     }
     function apps(): void { appGrid.toggle() }
+    // What a click on a minimized window's slot does; also for scripts.
+    function restoreMinimized(address: string): void {
+      var window = root.minimizedFor(address)
+      if (window) root.bringForward({ address: "0x" + window.address, minimized: true, toplevel: window.toplevel })
+    }
     // The snap plugin hands over Super+clicks on the dock, in global logical
     // coordinates: Hyprland keeps them for its window drag otherwise.
     function superClick(x: string, y: string): void {
