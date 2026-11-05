@@ -8,6 +8,11 @@
 # running Hyprland version. Safe to run repeatedly.
 set -euo pipefail
 
+# --yes accepts the one change to your own config (a require line in
+# hyprland.lua) without asking.
+ASSUME_YES=0
+[[ ${1:-} == "--yes" || ${1:-} == "-y" ]] && ASSUME_YES=1
+
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 hypr_dir="$HOME/.config/hypr"
 hook="$hypr_dir/nov-floating-dock.lua"
@@ -49,8 +54,19 @@ ln -sfn "$here/hypr/nov-floating-dock.lua" "$hook"
 
 if [[ -f $hypr_conf ]]; then
   if ! grep -q 'require("hypr.nov-floating-dock")' "$hypr_conf"; then
-    printf '\n-- Floating Dock: animated edge snapping on floating workspaces.\nrequire("hypr.nov-floating-dock")\n' >>"$hypr_conf"
-    echo "    added the require line to $hypr_conf"
+    answer=n
+    if (( ASSUME_YES )); then
+      answer=y
+    elif [[ -t 0 ]]; then
+      read -r -p "    Add require(\"hypr.nov-floating-dock\") to $hypr_conf? [y/N] " answer
+    fi
+    if [[ $answer =~ ^[Yy] ]]; then
+      cp "$hypr_conf" "$hypr_conf.bak-nov-dock-$(date +%s)"
+      printf '\n-- Floating Dock: animated edge snapping on floating workspaces.\nrequire("hypr.nov-floating-dock")\n' >>"$hypr_conf"
+      echo "    added the require line to $hypr_conf (backup next to it)"
+    else
+      echo "    left $hypr_conf unchanged: add require(\"hypr.nov-floating-dock\") yourself to load the native part"
+    fi
   fi
 else
   echo "    $hypr_conf not found: add require(\"hypr.nov-floating-dock\") to your Hyprland Lua config yourself"
