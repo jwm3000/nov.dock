@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "nov.dock",
+  "name": "Floating Dock",
+  "version": "1.0.0",
+  "author": "Norbert Winter; based on Omarchy Dock",
+  "description": "Floating windows with per-window borders, running-window dots, a Downloads stack and edge snapping.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "service": "Dock.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Floating Dock",
+    "description": "Settings for the active floating window",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.dock"
+  }
+}

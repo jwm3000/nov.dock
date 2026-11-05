@@ -1,0 +1,229 @@
+#pragma once
+
+#include <algorithm>
+#include <optional>
+#include <string_view>
+
+namespace AeroSnap {
+
+    struct Point {
+        double x = 0;
+        double y = 0;
+    };
+
+    struct Rect {
+        double x = 0;
+        double y = 0;
+        double w = 0;
+        double h = 0;
+    };
+
+    enum class Zone {
+        None,
+        Left,
+        LeftHalf,
+        Center,
+        Right,
+        RightHalf,
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight,
+        Maximize,
+    };
+
+    enum class ResizeEdge {
+        Top,
+        Bottom,
+        Left,
+        Right,
+        TopLeft,
+        TopRight,
+        BottomLeft,
+        BottomRight,
+    };
+
+    inline std::optional<ResizeEdge> resizeEdgeAt(const Point cursor, const Rect box, const double grab, const double cornerSpan) {
+        if (box.w <= 0 || box.h <= 0 || grab < 0 || cornerSpan < 0)
+            return std::nullopt;
+
+        const bool inHitBox = cursor.x >= box.x - grab && cursor.x <= box.x + box.w + grab && cursor.y >= box.y - grab && cursor.y <= box.y + box.h + grab;
+        const bool inContent = cursor.x >= box.x && cursor.x <= box.x + box.w && cursor.y >= box.y && cursor.y <= box.y + box.h;
+        if (!inHitBox || inContent)
+            return std::nullopt;
+
+        const bool nearTop    = cursor.y < box.y + cornerSpan;
+        const bool nearBottom = cursor.y > box.y + box.h - cornerSpan;
+        const bool nearLeft   = cursor.x < box.x + cornerSpan;
+        const bool nearRight  = cursor.x > box.x + box.w - cornerSpan;
+
+        if (nearTop && nearLeft)
+            return ResizeEdge::TopLeft;
+        if (nearTop && nearRight)
+            return ResizeEdge::TopRight;
+        if (nearBottom && nearLeft)
+            return ResizeEdge::BottomLeft;
+        if (nearBottom && nearRight)
+            return ResizeEdge::BottomRight;
+        if (cursor.y < box.y)
+            return ResizeEdge::Top;
+        if (cursor.y > box.y + box.h)
+            return ResizeEdge::Bottom;
+        if (cursor.x < box.x)
+            return ResizeEdge::Left;
+        if (cursor.x > box.x + box.w)
+            return ResizeEdge::Right;
+        return std::nullopt;
+    }
+
+    inline int columnsForMonitor(const Rect monitor, const std::string_view configuredColumns) {
+        if (configuredColumns == "2")
+            return 2;
+        if (configuredColumns == "3")
+            return 3;
+
+        return monitor.w > 0 && monitor.h > 0 && monitor.w * 9.0 > monitor.h * 16.0 ? 3 : 2;
+    }
+
+    inline double outQuart(const double progress) {
+        const double remaining = 1.0 - std::clamp(progress, 0.0, 1.0);
+        return 1.0 - remaining * remaining * remaining * remaining;
+    }
+
+    inline double inCubic(const double progress) {
+        const double clamped = std::clamp(progress, 0.0, 1.0);
+        return clamped * clamped * clamped;
+    }
+
+    inline Rect interpolateRect(const Rect from, const Rect to, const double progress) {
+        const double clamped = std::clamp(progress, 0.0, 1.0);
+        return {
+            from.x + (to.x - from.x) * clamped,
+            from.y + (to.y - from.y) * clamped,
+            from.w + (to.w - from.w) * clamped,
+            from.h + (to.h - from.h) * clamped,
+        };
+    }
+
+    inline Rect scaleRectFromCenter(const Rect rect, const double scale) {
+        const double clamped = std::max(0.0, scale);
+        const double width   = rect.w * clamped;
+        const double height  = rect.h * clamped;
+        return {
+            rect.x + (rect.w - width) / 2.0,
+            rect.y + (rect.h - height) / 2.0,
+            width,
+            height,
+        };
+    }
+
+    inline Zone zoneAt(const Point cursor, const Rect monitor, const double edgeThreshold, const double cornerRatio, const int columns, const bool leftQuarters = true,
+                       const bool rightQuarters = true) {
+        if (monitor.w <= 0 || monitor.h <= 0 || edgeThreshold < 0)
+            return Zone::None;
+
+        const auto ratio          = std::clamp(cornerRatio, 0.0, 0.45);
+        const bool nearLeft       = cursor.x <= monitor.x + edgeThreshold;
+        const bool nearRight      = cursor.x >= monitor.x + monitor.w - edgeThreshold;
+        const bool nearTop        = cursor.y <= monitor.y + edgeThreshold;
+        const bool nearBottom     = cursor.y >= monitor.y + monitor.h - edgeThreshold;
+        const bool inLeftRegion   = cursor.x <= monitor.x + monitor.w * ratio;
+        const bool inRightRegion  = cursor.x >= monitor.x + monitor.w * (1.0 - ratio);
+        const bool inTopRegion    = cursor.y <= monitor.y + monitor.h * ratio;
+        const bool inBottomRegion = cursor.y >= monitor.y + monitor.h * (1.0 - ratio);
+
+        if (!leftQuarters && (nearLeft || ((nearTop || nearBottom) && inLeftRegion)))
+            return Zone::LeftHalf;
+        if (!rightQuarters && (nearRight || ((nearTop || nearBottom) && inRightRegion)))
+            return Zone::RightHalf;
+        if (leftQuarters && ((nearTop && inLeftRegion) || (nearLeft && inTopRegion)))
+            return Zone::TopLeft;
+        if (rightQuarters && ((nearTop && inRightRegion) || (nearRight && inTopRegion)))
+            return Zone::TopRight;
+        if (nearBottom && columns == 3) {
+            if (cursor.x < monitor.x + monitor.w / 3.0)
+                return Zone::Left;
+            if (cursor.x > monitor.x + monitor.w * 2.0 / 3.0)
+                return Zone::Right;
+            return Zone::Center;
+        }
+        if (leftQuarters && ((nearBottom && inLeftRegion) || (nearLeft && inBottomRegion)))
+            return Zone::BottomLeft;
+        if (rightQuarters && ((nearBottom && inRightRegion) || (nearRight && inBottomRegion)))
+            return Zone::BottomRight;
+        if (nearTop)
+            return Zone::Maximize;
+        if (nearLeft)
+            return Zone::Left;
+        if (nearRight)
+            return Zone::Right;
+
+        return Zone::None;
+    }
+
+    // The entire upper edge means fullscreen; side edges mean exact halves.
+    // Stay inside this monitor, including negative origins and fractional scale.
+    inline Zone dockZoneAt(const Point cursor, const Rect monitor, const double threshold) {
+        if (monitor.w <= 0 || monitor.h <= 0 || threshold < 0 || cursor.x < monitor.x || cursor.y < monitor.y ||
+            cursor.x > monitor.x + monitor.w || cursor.y > monitor.y + monitor.h)
+            return Zone::None;
+        if (cursor.y <= monitor.y + threshold) return Zone::Maximize;
+        if (cursor.x <= monitor.x + threshold) return Zone::LeftHalf;
+        if (cursor.x >= monitor.x + monitor.w - threshold) return Zone::RightHalf;
+        return Zone::None;
+    }
+
+    // Pull the work area back from the edge the dock sits on, so a window
+    // snapped to a half ends above (or beside) the dock instead of under it.
+    inline Rect insetForDock(const Rect workArea, const std::string_view edge, const double reserve) {
+        if (reserve <= 0)
+            return workArea;
+        Rect area = workArea;
+        if (edge == "bottom")
+            area.h -= reserve;
+        else if (edge == "top") {
+            area.y += reserve;
+            area.h -= reserve;
+        } else if (edge == "left") {
+            area.x += reserve;
+            area.w -= reserve;
+        } else if (edge == "right")
+            area.w -= reserve;
+        return area.w > 0 && area.h > 0 ? area : workArea;
+    }
+
+    inline std::optional<Rect> rectForZone(const Rect workArea, const Zone zone, const double horizontalGap, const double verticalGap, const int columns) {
+        if (workArea.w <= 0 || workArea.h <= 0 || horizontalGap < 0 || verticalGap < 0)
+            return std::nullopt;
+
+        if (zone == Zone::Maximize)
+            return workArea;
+
+        const int    columnCount = columns == 3 ? 3 : 2;
+        const double columnWidth = (workArea.w - horizontalGap * (columnCount - 1)) / columnCount;
+        const double halfWidth   = (workArea.w - horizontalGap) / 2.0;
+        const double rowHeight   = (workArea.h - verticalGap) / 2.0;
+        if (columnWidth <= 0 || halfWidth <= 0 || rowHeight <= 0)
+            return std::nullopt;
+
+        switch (zone) {
+            case Zone::Left: return Rect{workArea.x, workArea.y, columnWidth, workArea.h};
+            case Zone::LeftHalf: return Rect{workArea.x, workArea.y, halfWidth, workArea.h};
+            case Zone::Center:
+                if (columnCount != 3)
+                    return std::nullopt;
+                return Rect{workArea.x + columnWidth + horizontalGap, workArea.y, columnWidth, workArea.h};
+            case Zone::Right: return Rect{workArea.x + (columnWidth + horizontalGap) * (columnCount - 1), workArea.y, columnWidth, workArea.h};
+            case Zone::RightHalf: return Rect{workArea.x + halfWidth + horizontalGap, workArea.y, halfWidth, workArea.h};
+            case Zone::TopLeft: return Rect{workArea.x, workArea.y, halfWidth, rowHeight};
+            case Zone::TopRight: return Rect{workArea.x + halfWidth + horizontalGap, workArea.y, halfWidth, rowHeight};
+            case Zone::BottomLeft: return Rect{workArea.x, workArea.y + rowHeight + verticalGap, halfWidth, rowHeight};
+            case Zone::BottomRight: return Rect{workArea.x + halfWidth + horizontalGap, workArea.y + rowHeight + verticalGap, halfWidth, rowHeight};
+            case Zone::None:
+            case Zone::Maximize: return std::nullopt;
+        }
+
+        return std::nullopt;
+    }
+
+} // namespace AeroSnap
