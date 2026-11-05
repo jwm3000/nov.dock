@@ -61,7 +61,7 @@ As on macOS, you can scroll any window just by pointing at it. Keyboard focus st
 
 ### See where Alt + Tab went
 
-On floating workspaces, the window Alt + Tab (or Alt + Shift + Tab) lands on glows briefly: a soft frame in your theme's accent color settles onto its edge, titlebar included, and fades away. Among overlapping windows you can see at a glance where focus went. Omarchy's own window switching is left as it is; the glow is added next to it.
+On floating workspaces, the window Alt + Tab (or Alt + Shift + Tab) lands on glows briefly: a soft frame in your theme's accent color settles onto its edge, titlebar included, and fades away. Among overlapping windows you can see at a glance where focus went. Omarchy's own window switching is left as it is; the glow is added next to it. It is on by default and can be switched off in the bar menu (*Focus glow*).
 
 ### Window borders, on or off, for all windows
 
@@ -126,7 +126,7 @@ omarchy plugin remove nov.dock
 - Removes the hook link.
 - Asks before removing the `require` line from `hyprland.lua`, keeping a backup.
 
-The built-in Omarchy dock comes back once nov.dock is removed. The only state nov.dock keeps is `~/.local/state/nov-dock/` (the borderless switch), which you can delete.
+The built-in Omarchy dock comes back once nov.dock is removed. The only state nov.dock keeps is `~/.local/state/nov-dock/` (the borderless and focus glow switches), which you can delete.
 
 ## How it is built
 

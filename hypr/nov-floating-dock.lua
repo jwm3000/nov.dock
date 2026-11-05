@@ -148,7 +148,12 @@ end
 -- and pass the keys on; once the switch has happened, the dock draws the
 -- glow around the new active window, titlebar included.
 if file then
+  local glow_off_file = (os.getenv("XDG_STATE_HOME") or ((os.getenv("HOME") or "") .. "/.local/state")) .. "/nov-dock/no-focus-glow"
+
   local function glow_active()
+    -- Switched off in the bar menu.
+    local off = io.open(glow_off_file, "r")
+    if off then off:close() return end
     local ok, w = pcall(hl.get_active_window)
     if not ok or not w or not w.floating or not w.at or not w.size then return end
     local floating, titlebar = false, true

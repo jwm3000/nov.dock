@@ -13,6 +13,9 @@ TAG = "nov-dock-borderless"
 # Borderless is one setting for every window on floating workspaces, kept
 # across restarts; the dock applies it to windows as they open or move in.
 BORDERLESS_FILE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "nov-dock/borderless"
+# The Alt+Tab focus glow is on unless this file exists; the Hyprland hook
+# checks for it before asking the dock to draw the glow.
+NO_FOCUS_GLOW_FILE = BORDERLESS_FILE.with_name("no-focus-glow")
 
 
 def run(*args):
@@ -37,7 +40,7 @@ def state(workspace=None):
         workspace = json.loads(run("hyprctl", "activeworkspace", "-j")).get("id", -1)
     active_workspace = active.get("workspace", {}).get("id", -1)
     return {"floating": mode(workspace) == "floating", "address": active.get("address", ""),
-            "title": active.get("title", ""), "borderless": borderless(),
+            "title": active.get("title", ""), "borderless": borderless(), "focusGlow": not NO_FOCUS_GLOW_FILE.exists(),
             "canControl": bool(active.get("floating")) and mode(active_workspace) == "floating"}
 
 
@@ -179,6 +182,12 @@ def main():
         print(json.dumps(state(args[0] if args else None)))
     elif command == "downloads":
         print(json.dumps(downloads()))
+    elif command == "focus-glow":
+        if NO_FOCUS_GLOW_FILE.exists():
+            NO_FOCUS_GLOW_FILE.unlink()
+        else:
+            NO_FOCUS_GLOW_FILE.parent.mkdir(parents=True, exist_ok=True)
+            NO_FOCUS_GLOW_FILE.touch()
     elif command == "border":
         toggle_borders()
     elif command == "apply-borders":

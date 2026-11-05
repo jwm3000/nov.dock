@@ -26,8 +26,8 @@ BarWidget {
   function close() { panel.open = false }
   // Flips the border switch at once and runs the change behind it.
   function toggleSetting(action, key) {
-    if (actionProc.running || action !== "border") return
-    actionProc.command = ["python3", root.helper, "border"]
+    if (actionProc.running || (action !== "border" && action !== "focus-glow")) return
+    actionProc.command = ["python3", root.helper, action]
     var next = Object.assign({}, root.selected)
     next[key] = !next[key]
     root.selected = next
@@ -131,6 +131,14 @@ BarWidget {
         description: strings.t("borderAll")
         checked: !root.selected.borderless
         onClicked: root.toggleSetting("border", "borderless")
+      }
+      // The glow around the window Alt+Tab lands on; on by default.
+      Toggle {
+        width: parent.width
+        label: strings.t("focusGlow")
+        description: strings.t("focusGlowHint")
+        checked: root.selected.focusGlow !== false
+        onClicked: root.toggleSetting("focus-glow", "focusGlow")
       }
     }
   }
