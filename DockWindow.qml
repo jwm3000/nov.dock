@@ -795,6 +795,7 @@ PanelWindow {
       : Math.round(Math.max(window.gap, Math.min(window.width - width - window.gap, slotCenterX - width / 2)))
     y: window.popupY(downloadsSlot, downloadsFan)
     fromTop: window.position === "top"
+    pixelRatio: window.screen ? window.screen.devicePixelRatio : 1
     stackX: window.vertical ? width / 2 : slotCenterX - x
     onDismissed: window.closeMenu()
   }

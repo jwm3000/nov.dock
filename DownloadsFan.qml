@@ -24,6 +24,8 @@ Item {
   // The folder rides along as the last step, so the fan always has one.
   readonly property int steps: count + 1
   readonly property int iconSize: Style.space(44)
+  // The screen's device pixel ratio, for decoding images sharp enough.
+  property real pixelRatio: 1
   readonly property int rowHeight: Style.space(52)
   readonly property int labelMax: Style.space(190)
   // How far the arc leans at its far end, and how much it turns.
@@ -108,27 +110,47 @@ Item {
         scale: (0.55 + 0.45 * step.p) * (step.hovered ? 1.12 : 1)
         Behavior on scale { enabled: step.p >= 1; NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
 
+        // The steps are tilted, so every edge is drawn antialiased, and
+        // images are decoded well above their size on screen: sharp when
+        // tilted and when they grow under the pointer.
+        readonly property real decodeSize: Math.ceil(root.iconSize * Math.max(1, root.pixelRatio) * 2)
+
         Image {
           id: thumb
           anchors.fill: parent
           visible: step.thumbnail && status === Image.Ready
           source: step.thumbnail ? step.file.uri : ""
-          sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
+          sourceSize: Qt.size(iconBox.decodeSize, iconBox.decodeSize)
           fillMode: Image.PreserveAspectFit
           asynchronous: true
           smooth: true
           mipmap: true
+          antialiasing: true
+        }
+        // A fine light edge around the photo, like a print, drawn on the
+        // area the photo actually covers.
+        Rectangle {
+          visible: thumb.visible
+          anchors.centerIn: thumb
+          width: thumb.paintedWidth + 2
+          height: thumb.paintedHeight + 2
+          color: "transparent"
+          radius: 2
+          border.width: 1.5
+          border.color: Qt.rgba(1, 1, 1, 0.85)
+          antialiasing: true
         }
         Image {
           anchors.fill: parent
           visible: !thumb.visible
           source: Quickshell.iconPath(step.iconName, true) || Quickshell.iconPath(step.isFolder ? "folder" : "text-x-generic", true)
-          sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
+          sourceSize: Qt.size(iconBox.decodeSize, iconBox.decodeSize)
           fillMode: Image.PreserveAspectFit
           // Theme icons load on the GUI thread: Quickshell's icon provider
           // crashes the shell when asked from a loader thread.
           smooth: true
           mipmap: true
+          antialiasing: true
         }
       }
 
