@@ -621,6 +621,14 @@ Item {
       root.applyBorders("")
     }
     function apps(): void { appGrid.toggle() }
+    // Called by the Hyprland hook after Alt+Tab, with the new active
+    // window's outer rectangle in global logical coordinates.
+    function focusGlow(x: string, y: string, width: string, height: string, radius: string): void {
+      var gx = parseInt(x), gy = parseInt(y), gw = parseInt(width), gh = parseInt(height)
+      if (isNaN(gx) || isNaN(gy) || !(gw > 0) || !(gh > 0)) return
+      var dock = root.dockAt(gx + gw / 2, gy + gh / 2)
+      if (dock) dock.focusGlow(Qt.rect(gx, gy, gw, gh), parseInt(radius) || 0)
+    }
     // What a click on a minimized window's slot does; also for scripts.
     function restoreMinimized(address: string): void {
       var window = root.minimizedFor(address)

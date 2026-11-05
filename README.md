@@ -59,6 +59,10 @@ As on macOS, you can scroll any window just by pointing at it. Keyboard focus st
 
 <p align="center"><img src="docs/images/scroll-under-pointer.png" alt="Keyboard focus on one window while the window under the pointer scrolls" width="700"></p>
 
+### See where Alt + Tab went
+
+On floating workspaces, the window Alt + Tab (or Alt + Shift + Tab) lands on glows briefly: a soft frame in your theme's accent color settles onto its edge, titlebar included, and fades away. Among overlapping windows you can see at a glance where focus went. Omarchy's own window switching is left as it is; the glow is added next to it.
+
 ### Window borders, on or off, for all windows
 
 A small window icon in the bar opens a switch that turns window borders on or off for every window on floating workspaces, including windows you open later. A new window has no border from its very first frame.
@@ -128,11 +132,11 @@ The built-in Omarchy dock comes back once nov.dock is removed. The only state no
 
 | Path | What |
 |---|---|
-| `manifest.json`, `*.qml`, `DockModel.js`, `i18n/` | The shell plugin (dock, app grid, Downloads stack, bar widget, `GenieOverlay.qml` for the minimize animation) |
+| `manifest.json`, `*.qml`, `DockModel.js`, `i18n/` | The shell plugin (dock, app grid, Downloads stack, bar widget, `GenieOverlay.qml` for the minimize animation, `FocusGlow.qml` for the Alt + Tab glow) |
 | `shaders/` | The genie effect's vertex and fragment shaders, with the compiled `.qsb` files the dock loads. `build.sh` recompiles them with Qt's `qsb`; only needed after editing them |
 | `desktop.py` | Helper for window state, borders, downloads and new windows |
 | `native/` | The Hyprland plugin (C++): edge snapping, Super + click on the dock, the Alt + Tab and screensaver fixes. Build with `make`, test with `make test` |
-| `hypr/nov-floating-dock.lua` | Loads the native plugin, sets up Alt + arrow keys, the border rule and scrolling under the pointer |
+| `hypr/nov-floating-dock.lua` | Loads the native plugin, sets up Alt + arrow keys, the Alt + Tab glow, the border rule and scrolling under the pointer |
 | `tests/` | `python3 -m unittest tests/test_desktop.py`, plus live smoke and visual tests |
 
 German and English translations are included.

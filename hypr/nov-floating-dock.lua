@@ -141,3 +141,37 @@ if file then
   end
   hl.timer(watch_follow_mouse, { timeout = 500, type = "oneshot" })
 end
+
+-- A short glow around the window Alt+Tab lands on, on floating workspaces,
+-- so it is easy to see where focus went among overlapping windows. These
+-- binds sit next to Omarchy's own Alt+Tab binds (which do the switching)
+-- and pass the keys on; once the switch has happened, the dock draws the
+-- glow around the new active window, titlebar included.
+if file then
+  local function glow_active()
+    local ok, w = pcall(hl.get_active_window)
+    if not ok or not w or not w.floating or not w.at or not w.size then return end
+    local floating, titlebar = false, true
+    for _, tag in ipairs(w.tags or {}) do
+      if tag == "omarchy-floating-workspace" then floating = true end
+      if tag == "spotifast-winamp" then titlebar = false end
+    end
+    if not floating then return end
+    local bar = 0
+    if titlebar and hl.plugin and hl.plugin.hyprbars then
+      local got, height = pcall(hl.get_config, "plugin.hyprbars.bar_height")
+      bar = got and tonumber(height) or 0
+    end
+    local got, rounding = pcall(hl.get_config, "decoration.rounding")
+    rounding = got and tonumber(rounding) or 0
+    hl.exec_cmd(string.format("omarchy-shell -q omarchy.dock focusGlow %d %d %d %d %d",
+      math.floor(w.at.x), math.floor(w.at.y - bar), math.floor(w.size.x), math.floor(w.size.y + bar), math.floor(rounding)))
+  end
+
+  for _, keys in ipairs({ "ALT + TAB", "ALT + SHIFT + TAB" }) do
+    hl.bind(keys, function()
+      -- After Omarchy's bind for the same keys has moved focus.
+      hl.timer(function() pcall(glow_active) end, { timeout = 40, type = "oneshot" })
+    end, { description = "Show where focus went", non_consuming = true })
+  end
+end

@@ -475,6 +475,15 @@ PanelWindow {
     }
   }
 
+  // The glow around the window Alt+Tab focused, on this screen.
+  FocusGlow {
+    id: focusGlowOverlay
+    screen: window.screen
+  }
+  function focusGlow(globalRect, radius) {
+    focusGlowOverlay.play(window.toScreen(globalRect), radius)
+  }
+
   // The genie into and out of the dock, on this screen.
   property string genieAddress: ""
   GenieOverlay {
