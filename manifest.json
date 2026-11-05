@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "nov.dock",
   "name": "Floating Dock",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Norbert Winter; based on Omarchy Dock",
   "description": "Floating windows with per-window borders, running-window dots, a Downloads stack and edge snapping.",
   "kinds": [
