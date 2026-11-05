@@ -85,3 +85,59 @@ if file then
     border_size = 0,
   })
 end
+
+-- Scrolling the window under the pointer, as on macOS: on a floating
+-- workspace the pointer's focus follows the mouse, so hovering a window
+-- behind the focused one and scrolling scrolls it, while the keyboard stays
+-- with the focused window until a click moves it (follow_mouse = 2). Omarchy
+-- sets focus-on-click (0) for floating workspaces and the user's own value
+-- elsewhere, but it decides on monitor focus before the active workspace has
+-- caught up, so the value it leaves can be the wrong one. This decides from
+-- the workspace's saved layout instead, the same files Omarchy writes.
+if file then
+  local state_home = os.getenv("XDG_STATE_HOME") or ((os.getenv("HOME") or "") .. "/.local/state")
+  local layouts = state_home .. "/omarchy/workspace-layouts/"
+  local ok_user, user_follow_mouse = pcall(hl.get_config, "input.follow_mouse")
+  if not ok_user or user_follow_mouse == 0 or user_follow_mouse == 2 then
+    user_follow_mouse = 1
+  end
+
+  local function layout_of(id)
+    for _, name in ipairs({ tostring(id) .. ".lua", "default.lua" }) do
+      local handle = io.open(layouts .. name, "r")
+      if handle then
+        local text = handle:read("*a") or ""
+        handle:close()
+        local mode = text:match('mode%s*=%s*"([%a]+)"') or text:match('default%s*=%s*"([%a]+)"')
+        if mode then return mode end
+      end
+    end
+    return "dwindle"
+  end
+
+  local function scroll_under_pointer()
+    local workspace = hl.get_active_workspace()
+    if not workspace or not workspace.id or workspace.id < 1 then return end
+    local floating = layout_of(workspace.id) == "floating"
+    local want = floating and 2 or user_follow_mouse
+    local ok, value = pcall(hl.get_config, "input.follow_mouse")
+    if ok and value ~= want then
+      hl.config({ input = { follow_mouse = want } })
+    end
+  end
+
+  for _, event in ipairs({ "workspace.active", "monitor.focused", "config.reloaded", "hyprland.start" }) do
+    hl.on(event, function()
+      -- After Omarchy's own handler for the same event has set its value.
+      hl.timer(function() pcall(scroll_under_pointer) end, { timeout = 30, type = "oneshot" })
+    end)
+  end
+
+  -- Switching a workspace's layout has no event of its own, and the active
+  -- workspace can settle after the events above.
+  local function watch_follow_mouse()
+    pcall(scroll_under_pointer)
+    hl.timer(watch_follow_mouse, { timeout = 500, type = "oneshot" })
+  end
+  hl.timer(watch_follow_mouse, { timeout = 500, type = "oneshot" })
+end
