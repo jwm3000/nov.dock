@@ -34,6 +34,7 @@ Click the Downloads folder and your latest downloads fan out above it, the newes
 
 - Images show a thumbnail.
 - A click opens a file straight in its default app, as a double-click in the file browser does. Text files open in your default editor (nvim on a stock Omarchy).
+- **Drag a file out** of the stack and drop it into any app that takes files, such as a chat (WhatsApp, Signal), a mail or the file browser, just as from the file browser. The file is copied, never moved, and the stack closes once you drop it.
 - The top step opens the Downloads folder, and so does a right-click on the stack.
 
 <p align="center"><img src="docs/images/downloads-fan.png" alt="The Downloads stack fanned out" width="480"></p>

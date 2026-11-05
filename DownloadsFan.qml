@@ -159,14 +159,41 @@ Item {
         }
       }
 
+      // Dragged out of the fan, a download goes to any app that takes files
+      // (a chat, a mail, the file browser), as a drag from the file browser
+      // does: a regular Wayland drag offering the file's URI. It is always a
+      // copy; the file stays where it is. The fan closes afterwards, as on macOS.
+      Item {
+        id: dragProxy
+        width: iconBox.width
+        height: iconBox.height
+        Drag.dragType: Drag.Automatic
+        Drag.supportedActions: Qt.CopyAction
+        Drag.proposedAction: Qt.CopyAction
+        Drag.mimeData: step.isFolder ? ({}) : ({ "text/uri-list": step.file.uri + "\r\n", "text/plain": step.file.path })
+        Drag.imageSource: step.isFolder ? "" : (step.thumbnail ? step.file.uri : Quickshell.iconPath(step.iconName, true))
+        Drag.imageSourceSize: Qt.size(root.iconSize * 1.5, root.iconSize * 1.5)
+        Drag.hotSpot: Qt.point(root.iconSize * 0.75, root.iconSize * 0.75)
+        Drag.active: mouse.drag.active
+        // Qt on Wayland reports even an accepted drop as ignored, so the fan
+        // closes after every drag: the file has gone where it was dropped.
+        Drag.onDragFinished: function(dropAction) {
+          dragProxy.x = 0
+          dragProxy.y = 0
+          root.dismissed()
+        }
+      }
+
       MouseArea {
         id: mouse
         x: label.x
         width: iconBox.x + iconBox.width - label.x
         height: parent.height
         hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: drag.active ? Qt.DragCopyCursor : Qt.PointingHandCursor
         enabled: step.p >= 1 && (!step.isFolder || (root.dock && root.dock.downloadsUri !== ""))
+        drag.target: step.isFolder ? null : dragProxy
+        drag.threshold: Style.space(6)
         onClicked: {
           // Straight to the default app, as a double-click in the file
           // browser does, rather than through the portal's "Open with".
