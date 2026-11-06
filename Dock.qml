@@ -132,6 +132,61 @@ Item {
     onExited: if (root.geometryRequests.length > 0) Qt.callLater(function() { geometryProc.running = true })
   }
 
+  // Exposé: the floating windows of the focused monitor's workspace, side by
+  // side. Only on floating workspaces; window geometry comes straight from
+  // Hyprland, as the toplevel list does not follow windows being moved.
+  property bool exposeLoading: false
+  function toggleExpose() {
+    var dock = root.focusedDock()
+    if (!dock) return
+    if (dock.exposeOpen()) { dock.closeExpose(); return }
+    var monitor = Hyprland.focusedMonitor
+    var workspace = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
+    if (!root.isFloating(workspace) || exposeProc.running) return
+    exposeProc.workspace = workspace
+    exposeProc.dock = dock
+    exposeProc.running = true
+  }
+  function closeExpose() {
+    var windows = docks.instances
+    for (var i = 0; i < windows.length; i++) windows[i].closeExpose()
+  }
+  Process {
+    id: exposeProc
+    property int workspace: -1
+    property var dock: null
+    command: ["hyprctl", "clients", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var clients = []
+        try { clients = JSON.parse(text) } catch (error) { return }
+        var dock = exposeProc.dock
+        if (!dock) return
+        var byAddress = {}
+        var toplevels = Hyprland.toplevels.values
+        for (var i = 0; i < toplevels.length; i++) byAddress[root.bareAddress(toplevels[i].address)] = toplevels[i]
+        var screen = dock.screen
+        var list = []
+        for (var j = 0; j < clients.length; j++) {
+          var c = clients[j]
+          if (!c.mapped || c.hidden || !c.floating || !c.workspace || c.workspace.id !== exposeProc.workspace) continue
+          if (!c.size || c.size[0] < 20 || c.size[1] < 20) continue
+          var top = byAddress[root.bareAddress(c.address)]
+          if (!top || !top.wayland) continue
+          var entry = c.class ? root.entryForAppId(c.class) : null
+          list.push({
+            address: c.address,
+            title: String(c.title || c.class || ""),
+            icon: root.iconFor({ key: entry ? entry.id : String(c.class || "") }),
+            home: Qt.rect(c.at[0] - screen.x, c.at[1] - screen.y, c.size[0], c.size[1]),
+            toplevel: top.wayland
+          })
+        }
+        dock.openExpose(list)
+      }
+    }
+  }
+
   // The dock on the screen a global point is on, or on the focused screen.
   function dockAt(globalX, globalY) {
     var windows = docks.instances
@@ -621,6 +676,9 @@ Item {
       root.applyBorders("")
     }
     function apps(): void { appGrid.toggle() }
+    // Exposé: the three-finger swipe up toggles it, down leaves it.
+    function expose(): void { root.toggleExpose() }
+    function exposeClose(): void { root.closeExpose() }
     // Called by the Hyprland hook after Alt+Tab, with the new active
     // window's outer rectangle in global logical coordinates.
     function focusGlow(x: string, y: string, width: string, height: string, radius: string): void {

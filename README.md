@@ -60,6 +60,19 @@ As on macOS, you can scroll any window just by pointing at it. Keyboard focus st
 
 <p align="center"><img src="docs/images/scroll-under-pointer.png" alt="Keyboard focus on one window while the window under the pointer scrolls" width="700"></p>
 
+### Exposé
+
+Swipe up with three fingers on a floating workspace and every floating window flies into a grid, side by side, as in macOS's Exposé. The grid keeps each window's proportions and roughly where it was. Each window shows a live preview with its app and title below it.
+
+- **Click a window** to bring it to the front.
+- **The X on a window's corner** closes that window: it pops, bursts into particles, and the others slide up to fill the gap.
+- **To leave**, swipe down with three fingers, press Esc, or click the empty space.
+- **From the keyboard**, the arrow keys or Tab pick a window, Enter opens it, and Delete closes it.
+
+The horizontal three-finger swipe stays Omarchy's workspace switch. Exposé is on by default and can be switched off at the top of the bar menu.
+
+<p align="center"><img src="docs/images/expose.png" alt="Exposé: the windows side by side, and a window bursting into particles after its X was pressed" width="760"></p>
+
 ### See where Alt + Tab went
 
 On floating workspaces, the window Alt + Tab (or Alt + Shift + Tab) lands on glows briefly: a soft frame in your theme's accent color settles onto its edge, titlebar included, and fades away. Among overlapping windows you can see at a glance where focus went. Omarchy's own window switching is left as it is; the glow is added next to it. It is on by default and can be switched off in the bar menu (*Focus glow*).
@@ -127,17 +140,17 @@ omarchy plugin remove nov.dock
 - Removes the hook link.
 - Asks before removing the `require` line from `hyprland.lua`, keeping a backup.
 
-The built-in Omarchy dock comes back once nov.dock is removed. The only state nov.dock keeps is `~/.local/state/nov-dock/` (the borderless and focus glow switches), which you can delete.
+The built-in Omarchy dock comes back once nov.dock is removed. The only state nov.dock keeps is `~/.local/state/nov-dock/` (the borderless, focus glow and Exposé switches), which you can delete.
 
 ## How it is built
 
 | Path | What |
 |---|---|
-| `manifest.json`, `*.qml`, `DockModel.js`, `i18n/` | The shell plugin (dock, app grid, Downloads stack, bar widget, `GenieOverlay.qml` for the minimize animation, `FocusGlow.qml` for the Alt + Tab glow) |
+| `manifest.json`, `*.qml`, `DockModel.js`, `i18n/` | The shell plugin (dock, app grid, Downloads stack, bar widget, `GenieOverlay.qml` for the minimize animation, `FocusGlow.qml` for the Alt + Tab glow, `ExposeOverlay.qml` for Exposé) |
 | `shaders/` | The genie effect's vertex and fragment shaders, with the compiled `.qsb` files the dock loads. `build.sh` recompiles them with Qt's `qsb`; only needed after editing them |
 | `desktop.py` | Helper for window state, borders, downloads and new windows |
 | `native/` | The Hyprland plugin (C++): edge snapping, Super + click on the dock, the Alt + Tab and screensaver fixes. Build with `make`, test with `make test` |
-| `hypr/nov-floating-dock.lua` | Loads the native plugin, sets up Alt + arrow keys, the Alt + Tab glow, the border rule and scrolling under the pointer |
+| `hypr/nov-floating-dock.lua` | Loads the native plugin, sets up Alt + arrow keys, the Exposé swipes, the Alt + Tab glow, the border rule and scrolling under the pointer |
 | `tests/` | `python3 -m unittest tests/test_desktop.py`, plus live smoke and visual tests |
 
 German and English translations are included.

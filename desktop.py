@@ -16,6 +16,8 @@ BORDERLESS_FILE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/st
 # The Alt+Tab focus glow is on unless this file exists; the Hyprland hook
 # checks for it before asking the dock to draw the glow.
 NO_FOCUS_GLOW_FILE = BORDERLESS_FILE.with_name("no-focus-glow")
+# Exposé (three-finger swipe up) is on unless this file exists.
+NO_EXPOSE_FILE = BORDERLESS_FILE.with_name("no-expose")
 
 
 def run(*args):
@@ -41,6 +43,7 @@ def state(workspace=None):
     active_workspace = active.get("workspace", {}).get("id", -1)
     return {"floating": mode(workspace) == "floating", "address": active.get("address", ""),
             "title": active.get("title", ""), "borderless": borderless(), "focusGlow": not NO_FOCUS_GLOW_FILE.exists(),
+            "expose": not NO_EXPOSE_FILE.exists(),
             "canControl": bool(active.get("floating")) and mode(active_workspace) == "floating"}
 
 
@@ -182,12 +185,13 @@ def main():
         print(json.dumps(state(args[0] if args else None)))
     elif command == "downloads":
         print(json.dumps(downloads()))
-    elif command == "focus-glow":
-        if NO_FOCUS_GLOW_FILE.exists():
-            NO_FOCUS_GLOW_FILE.unlink()
+    elif command in ("focus-glow", "expose"):
+        marker = NO_FOCUS_GLOW_FILE if command == "focus-glow" else NO_EXPOSE_FILE
+        if marker.exists():
+            marker.unlink()
         else:
-            NO_FOCUS_GLOW_FILE.parent.mkdir(parents=True, exist_ok=True)
-            NO_FOCUS_GLOW_FILE.touch()
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.touch()
     elif command == "border":
         toggle_borders()
     elif command == "apply-borders":

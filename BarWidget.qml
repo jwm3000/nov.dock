@@ -26,7 +26,7 @@ BarWidget {
   function close() { panel.open = false }
   // Flips the border switch at once and runs the change behind it.
   function toggleSetting(action, key) {
-    if (actionProc.running || (action !== "border" && action !== "focus-glow")) return
+    if (actionProc.running || ["border", "focus-glow", "expose"].indexOf(action) < 0) return
     actionProc.command = ["python3", root.helper, action]
     var next = Object.assign({}, root.selected)
     next[key] = !next[key]
@@ -122,6 +122,15 @@ BarWidget {
         font.pixelSize: Style.font.body
         height: Style.spacing.popupRowHeight
         verticalAlignment: Text.AlignVCenter
+      }
+      // Exposé: all floating windows side by side, with a three-finger swipe
+      // up; on by default.
+      Toggle {
+        width: parent.width
+        label: strings.t("expose")
+        description: strings.t("exposeHint")
+        checked: root.selected.expose !== false
+        onClicked: root.toggleSetting("expose", "expose")
       }
       // Borders are one setting for all floating windows; the switch flips at
       // once and the panel stays open.

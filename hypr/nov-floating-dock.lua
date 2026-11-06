@@ -180,3 +180,33 @@ if file then
     end, { description = "Show where focus went", non_consuming = true })
   end
 end
+
+-- Exposé: a three-finger swipe up shows every floating window of the
+-- workspace side by side (the dock draws it), a swipe down leaves. The
+-- horizontal three-finger swipe stays Omarchy's workspace switch. Switched
+-- off in the bar menu, the swipes do nothing.
+if file then
+  local expose_off_file = (os.getenv("XDG_STATE_HOME") or ((os.getenv("HOME") or "") .. "/.local/state")) .. "/nov-dock/no-expose"
+
+  local function expose_enabled()
+    local off = io.open(expose_off_file, "r")
+    if off then off:close() return false end
+    return true
+  end
+
+  hl.gesture({
+    fingers = 3,
+    direction = "up",
+    action = function()
+      if expose_enabled() then hl.exec_cmd("omarchy-shell -q omarchy.dock expose") end
+    end,
+  })
+  hl.gesture({
+    fingers = 3,
+    direction = "down",
+    action = function() hl.exec_cmd("omarchy-shell -q omarchy.dock exposeClose") end,
+  })
+
+  -- The dimmed desktop behind Exposé is blurred too.
+  hl.layer_rule({ match = { namespace = "^nov-dock-expose$" }, blur = true, ignore_alpha = 0.1 })
+end

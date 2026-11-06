@@ -475,6 +475,27 @@ PanelWindow {
     }
   }
 
+  // Exposé, on this screen.
+  ExposeOverlay {
+    id: exposeOverlay
+    screen: window.screen
+    onFinished: function(address) {
+      if (address && window.dock) window.dock.bringForward({ address: address, minimized: false })
+    }
+    onCloseWindow: function(address) {
+      var target = String(address || "")
+      if (target.indexOf("0x") !== 0) target = "0x" + target
+      if (/^0x[0-9a-fA-F]+$/.test(target))
+        Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.window.close({ window = \"address:" + target + "\" })"])
+    }
+  }
+  function openExpose(list) {
+    window.closeMenu()
+    exposeOverlay.show(list)
+  }
+  function closeExpose() { exposeOverlay.leave("") }
+  function exposeOpen() { return exposeOverlay.open }
+
   // The glow around the window Alt+Tab focused, on this screen.
   FocusGlow {
     id: focusGlowOverlay
