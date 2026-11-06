@@ -114,14 +114,19 @@ PanelWindow {
   function leave(address) {
     if (!root.open || root.closing) return
     root.chosenAddress = address || ""
-    if (root.chosenAddress) root.chose(root.chosenAddress)
+    // Closing first: Exposé gives up the keyboard, so the picked window can
+    // take the focus. Raised a moment later, during the flight back, it is
+    // in front and focused by the time Exposé is gone.
     root.closing = true
+    if (root.chosenAddress) chooseTimer.restart()
     readyCheck.stop()
     readyGuard.stop()
     inAnim.stop()
     outAnim.from = root.progress
     outAnim.restart()
   }
+
+  Timer { id: chooseTimer; interval: 60; onTriggered: if (root.chosenAddress) root.chose(root.chosenAddress) }
 
   function finish() {
     root.open = false

@@ -334,7 +334,7 @@ Item {
                 width: root.iconSize
                 height: root.iconSize
                 sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
-                source: root.appLibrary ? root.appLibrary.iconSource(cell.modelData.icon) : ""
+                source: root.dock ? root.dock.iconSource(cell.modelData.icon) : (root.appLibrary ? root.appLibrary.iconSource(cell.modelData.icon) : "")
                 fillMode: Image.PreserveAspectFit
                 // Loaded with the cell, from Qt's image cache after the first
                 // open, so icons do not pop in after the grid has appeared.
@@ -425,7 +425,7 @@ Item {
       width: root.iconSize
       height: root.iconSize
       sourceSize: Qt.size(root.iconSize * 2, root.iconSize * 2)
-      source: root.dragEntry && root.appLibrary ? root.appLibrary.iconSource(root.dragEntry.icon) : ""
+      source: root.dragEntry ? (root.dock ? root.dock.iconSource(root.dragEntry.icon) : (root.appLibrary ? root.appLibrary.iconSource(root.dragEntry.icon) : "")) : ""
       fillMode: Image.PreserveAspectFit
       smooth: true
       mipmap: true

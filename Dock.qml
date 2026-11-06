@@ -182,6 +182,25 @@ Item {
     exposeProc.dock = dock
     exposeProc.running = true
   }
+  // The window picked in Exposé: focused and in front. A maximized window is
+  // not raised above windows that were focused over it, so those go below
+  // it instead, topmost first, which keeps their order among themselves.
+  function exposeChoose(address, windows) {
+    var bare = root.bareAddress(address)
+    if (!/^[0-9a-fA-F]+$/.test(bare)) return
+    var target = "window = \"address:0x" + bare + "\""
+    var steps = ["hl.dsp.focus({ " + target + " })", "hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })"]
+    var chosen = null
+    for (var i = 0; i < windows.length; i++) if (root.bareAddress(windows[i].address) === bare) chosen = windows[i]
+    if (chosen && chosen.maximized) {
+      var others = windows.filter(function(w) { return root.bareAddress(w.address) !== bare })
+      others.sort(function(a, b) { return a.stack - b.stack })
+      for (var j = 0; j < others.length; j++)
+        steps.push("hl.dsp.window.alter_zorder({ mode = \"bottom\", window = \"address:0x" + root.bareAddress(others[j].address) + "\" })")
+    }
+    Util.execDetached(steps.map(function(step) { return "hyprctl dispatch " + Util.shellQuote(step) }).join(" && "))
+  }
+
   function closeExpose() {
     var windows = docks.instances
     for (var i = 0; i < windows.length; i++) windows[i].closeExpose()
@@ -221,6 +240,7 @@ Item {
             home: Qt.rect(c.at[0] - screen.x, c.at[1] - bar - screen.y, c.size[0], c.size[1] + bar),
             bar: bar,
             stack: Number(c.focusHistoryID) || 0,
+            maximized: Number(c.fullscreen) === 1,
             toplevel: top.wayland
           })
         }
@@ -476,10 +496,52 @@ Item {
     return item ? DesktopEntries.byId(item.key) : null
   }
 
+  // App icons at their best: Omarchy's index keeps whichever PNG it finds
+  // first, which for apps that ship only PNGs (Steam among them) is often a
+  // 16 or 48 px one beside a 256 px one. This index prefers a scalable SVG
+  // and otherwise the largest PNG of each name, across the same icon dirs.
+  property var sharpIcons: ({})
+  property var pendingSharpIcons: ({})
+  Process {
+    id: sharpIconScan
+    command: ["bash", "-c", [
+      'dirs="$HOME/.icons $HOME/.local/share/icons";',
+      'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
+      '{ for base in $dirs; do [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null; done;',
+      '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null; } |',
+      'awk \'{ file = $0; sub(/.*\\//, "", file); name = file; sub(/\\.[^.]*$/, "", name);',
+      '  if (file ~ /\\.svg$/) score = 100000;',
+      '  else if (match($0, /\\/[0-9]+x[0-9]+(@[0-9]+x?)?\\//)) { size = substr($0, RSTART + 1, RLENGTH - 2); sub(/x.*/, "", size); score = size + 0; if ($0 ~ /@2x?\\//) score *= 2 }',
+      '  else score = 1;',
+      '  if (!(name in best) || score > best[name]) { best[name] = score; path[name] = $0 } }',
+      '  END { for (n in path) print n "\\t" path[n] }\''
+    ].join(" ")]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var tab = line.indexOf("\t")
+        if (tab > 0) root.pendingSharpIcons[line.slice(0, tab)] = line.slice(tab + 1)
+      }
+    }
+    onStarted: root.pendingSharpIcons = ({})
+    onExited: root.sharpIcons = root.pendingSharpIcons
+  }
+  // New apps bring new icons.
+  readonly property int appCount: DesktopEntries.applications.values.length
+  onAppCountChanged: sharpIconRescan.restart()
+  Timer { id: sharpIconRescan; interval: 1500; onTriggered: if (!sharpIconScan.running) sharpIconScan.running = true }
+
+  // An icon name (or path) from a desktop entry, as an image source.
+  function iconSource(icon) {
+    var value = String(icon || "")
+    var sharp = value && value.charAt(0) !== "/" && value.indexOf("://") < 0 ? root.sharpIcons[value] : ""
+    if (sharp) return "file://" + sharp
+    return root.appLibrary ? root.appLibrary.iconSource(value) : Quickshell.iconPath(value, true)
+  }
+
   function iconFor(item) {
     var entry = entryFor(item)
     var icon = entry && entry.icon ? entry.icon : (item ? item.key : "")
-    return root.appLibrary ? root.appLibrary.iconSource(icon) : Quickshell.iconPath(icon, true)
+    return root.iconSource(icon)
   }
 
   function launch(item) {
@@ -661,6 +723,7 @@ Item {
   Component.onCompleted: {
     refresh()
     syncItemModel()
+    sharpIconScan.running = true
     refreshDownloads()
     reportSnapReserve()
     reserveRetry.restart()

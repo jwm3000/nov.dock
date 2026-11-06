@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "nov.dock",
   "name": "Floating Dock",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "author": "Norbert Winter; based on Omarchy Dock",
   "description": "macOS-style dock for floating workspaces: genie minimize into the dock, a Downloads stack, edge and Alt+Arrow snapping that keeps the dock visible, scroll under the pointer, and global window borders.",
   "kinds": [

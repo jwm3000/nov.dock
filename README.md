@@ -16,6 +16,7 @@ Pinned and running apps sit side by side, with a dot for every open window. The 
 
 - **Pin apps** by dragging them from the app grid onto the dock, or with a right-click → *Keep in Dock*. Pins are kept in `~/.config/omarchy/shell.json` and survive restarts.
 - **Reorder** by dragging icons along the dock.
+- **Sharp icons:** for apps that ship only PNG icons (Steam, for example), the dock and the app grid use the largest one rather than whichever size is found first; scalable SVGs are preferred.
 - **Super + click** on an app icon opens a new window of that app, as Cmd + N does on macOS.
 
 <p align="center"><img src="docs/images/app-grid.png" alt="The app grid, searchable, with drag to the dock" width="420"> &nbsp; <img src="docs/images/super-click.png" alt="Super + click on an app icon opens a new window" width="420"></p>
@@ -64,7 +65,7 @@ As on macOS, you can scroll any window just by pointing at it. Keyboard focus st
 
 Swipe up with three fingers on a floating workspace and every floating window flies into a grid, side by side, as in macOS's Exposé. The windows seem to turn into the overview themselves: each preview starts exactly over its window, titlebar included in your theme's colors, while the desktop behind them clears to the wallpaper. The bar and the dock stay where they are. The grid keeps each window's proportions and roughly where it was, with a live preview and the app and title below each window.
 
-- **Click a window** to bring it to the front.
+- **Click a window** to bring it to the front with keyboard focus, maximized windows included.
 - **The X on a window's top right corner** closes that window: it pops, bursts into particles, and the others slide up to fill the gap.
 - **To leave**, swipe down with three fingers, press Esc, or click the empty space.
 - **From the keyboard**, the arrow keys or Tab pick a window, Enter opens it, and Delete closes it.

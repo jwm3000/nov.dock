@@ -482,7 +482,7 @@ PanelWindow {
     // The picked window is raised while Exposé still hides the windows, so
     // they are stacked as shown once it is gone.
     onChose: function(address) {
-      if (address && window.dock) window.dock.bringForward({ address: address, minimized: false })
+      if (address && window.dock) window.dock.exposeChoose(address, exposeOverlay.windows)
     }
     onCloseWindow: function(address) {
       var target = String(address || "")
