@@ -32,7 +32,7 @@ This works for every way of minimizing: the titlebar button, Super + M and the d
 
 Click the Downloads folder and your latest downloads fan out above it, the newest right above the stack, just like on macOS.
 
-- Images show a thumbnail.
+- Images show a thumbnail. The stack keeps its list current in the background, so it opens at once, even the first time.
 - A click opens a file straight in its default app, as a double-click in the file browser does. Text files open in your default editor (nvim on a stock Omarchy).
 - **Drag a file out** of the stack and drop it into any app that takes files, such as a chat (WhatsApp, Signal), a mail or the file browser, just as from the file browser. The file is copied, never moved, and the stack closes once you drop it.
 - The top step opens the Downloads folder, and so does a right-click on the stack.
@@ -62,10 +62,10 @@ As on macOS, you can scroll any window just by pointing at it. Keyboard focus st
 
 ### Exposé
 
-Swipe up with three fingers on a floating workspace and every floating window flies into a grid, side by side, as in macOS's Exposé. The grid keeps each window's proportions and roughly where it was. Each window shows a live preview with its app and title below it.
+Swipe up with three fingers on a floating workspace and every floating window flies into a grid, side by side, as in macOS's Exposé. The windows seem to turn into the overview themselves: each preview starts exactly over its window, titlebar included in your theme's colors, while the desktop behind them clears to the wallpaper. The bar and the dock stay where they are. The grid keeps each window's proportions and roughly where it was, with a live preview and the app and title below each window.
 
 - **Click a window** to bring it to the front.
-- **The X on a window's corner** closes that window: it pops, bursts into particles, and the others slide up to fill the gap.
+- **The X in a window's titlebar** closes that window: it pops, bursts into particles, and the others slide up to fill the gap.
 - **To leave**, swipe down with three fingers, press Esc, or click the empty space.
 - **From the keyboard**, the arrow keys or Tab pick a window, Enter opens it, and Delete closes it.
 

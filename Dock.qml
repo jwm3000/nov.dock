@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import Qt.labs.folderlistmodel
 import qs.Commons
 import "DockModel.js" as DockModel
 import "file:///usr/share/omarchy/shell/services" as OmarchyServices
@@ -20,6 +21,20 @@ Item {
   property string downloadsUri: ""
   property bool downloadsFailed: false
   property alias downloadsLoading: downloadsProc.running
+  // The list is kept current all along, not read on the click that opens
+  // the stack: read at start and again whenever the Downloads folder
+  // changes. The stack then opens at once, its thumbnails already decoded.
+  FolderListModel {
+    id: downloadsWatch
+    folder: root.downloadsUri
+    showDirs: true
+    showHidden: false
+    sortField: FolderListModel.Unsorted
+    onCountChanged: downloadsChanged.restart()
+  }
+  // A finishing download renames its partial file; one read covers both steps.
+  Timer { id: downloadsChanged; interval: 400; onTriggered: root.refreshDownloads() }
+
   function refreshDownloads() {
     if (downloadsProc.running) return
     downloadsFailed = false
@@ -135,6 +150,26 @@ Item {
   // Exposé: the floating windows of the focused monitor's workspace, side by
   // side. Only on floating workspaces; window geometry comes straight from
   // Hyprland, as the toplevel list does not follow windows being moved.
+  // hyprbars' titlebar follows the theme, so its look (height, color, text
+  // color and size) is read along with the windows every time Exposé opens.
+  function argb(value) {
+    var v = Number(value) || 0
+    var a = Math.floor(v / 16777216) % 256, r = Math.floor(v / 65536) % 256, g = Math.floor(v / 256) % 256, b = v % 256
+    return Qt.rgba(r / 255, g / 255, b / 255, a / 255)
+  }
+  function parseTitlebar(lines) {
+    var values = []
+    for (var i = 0; i < 4; i++) {
+      try { values.push(JSON.parse(lines[i])) } catch (error) { values.push(null) }
+    }
+    function intOf(v) { return v && v.int !== undefined ? v.int : null }
+    return {
+      height: intOf(values[0]) || 0,
+      color: intOf(values[1]) !== null ? root.argb(intOf(values[1])) : "#353b44",
+      text: intOf(values[2]) !== null ? root.argb(intOf(values[2])) : "#d2d7da",
+      textSize: intOf(values[3]) || 12
+    }
+  }
   property bool exposeLoading: false
   function toggleExpose() {
     var dock = root.focusedDock()
@@ -155,11 +190,13 @@ Item {
     id: exposeProc
     property int workspace: -1
     property var dock: null
-    command: ["hyprctl", "clients", "-j"]
+    command: ["sh", "-c", "hyprctl clients -j; echo '@@nov-dock@@'; for o in bar_height bar_color col.text bar_text_size; do hyprctl getoption plugin:hyprbars:$o -j 2>/dev/null | tr -d '\\n'; echo; done"]
     stdout: StdioCollector {
       onStreamFinished: {
+        var parts = text.split("@@nov-dock@@")
         var clients = []
-        try { clients = JSON.parse(text) } catch (error) { return }
+        try { clients = JSON.parse(parts[0]) } catch (error) { return }
+        var titlebar = root.parseTitlebar(String(parts[1] || "").trim().split("\n"))
         var dock = exposeProc.dock
         if (!dock) return
         var byAddress = {}
@@ -174,15 +211,20 @@ Item {
           var top = byAddress[root.bareAddress(c.address)]
           if (!top || !top.wayland) continue
           var entry = c.class ? root.entryForAppId(c.class) : null
+          // Floating windows carry hyprbars' titlebar above their content,
+          // except those with a rule against it (Spotifast in Winamp mode).
+          var bar = (c.tags || []).indexOf("spotifast-winamp") >= 0 ? 0 : titlebar.height
           list.push({
             address: c.address,
             title: String(c.title || c.class || ""),
             icon: root.iconFor({ key: entry ? entry.id : String(c.class || "") }),
-            home: Qt.rect(c.at[0] - screen.x, c.at[1] - screen.y, c.size[0], c.size[1]),
+            home: Qt.rect(c.at[0] - screen.x, c.at[1] - bar - screen.y, c.size[0], c.size[1] + bar),
+            bar: bar,
+            stack: Number(c.focusHistoryID) || 0,
             toplevel: top.wayland
           })
         }
-        dock.openExpose(list)
+        dock.openExpose(list, titlebar)
       }
     }
   }
@@ -619,6 +661,7 @@ Item {
   Component.onCompleted: {
     refresh()
     syncItemModel()
+    refreshDownloads()
     reportSnapReserve()
     reserveRetry.restart()
   }

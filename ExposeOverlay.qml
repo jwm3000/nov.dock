@@ -1,38 +1,53 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Particles
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
+import qs.Ui
 
 // Exposé, after macOS: every floating window of the workspace, side by side.
-// The windows fly from where they are into a grid that keeps their
-// proportions and their rough arrangement (what was left stays left, what
-// was on top stays on top), each with its app and title below it.
 //
-// A click on a window brings it forward. The X on a window's corner closes
-// that window: it pops and bursts into particles, and the others move up to
-// fill the gap. Esc, a click on the empty space or a three-finger swipe down
-// leave. The previews are live, and only while Exposé is open.
+// The windows seem to turn into the overview themselves. Each preview starts
+// exactly over its window, titlebar included, stacked as the windows are,
+// and only appears once every live preview has its first frame. Behind them
+// the wallpaper takes the windows' place, so swapping the windows for their
+// copies cannot be seen; the copies then fly into a grid that keeps their
+// proportions and rough arrangement. The bar and the dock stay as they are.
+//
+// A click on a window brings it forward: it is raised at once, behind the
+// wallpaper, so when Exposé is gone the windows are stacked as shown. The X
+// in a window's titlebar closes that window with a particle burst while the
+// others fill the gap. Esc, a click on the empty space or a three-finger
+// swipe down leave.
 PanelWindow {
   id: root
 
-  // { address, title, icon, home (rect, screen coordinates), toplevel }
+  // { address, title, icon, home (rect incl. titlebar, screen coordinates),
+  //   bar (titlebar height), stack (focus history, 0 = topmost), toplevel }
   property var windows: []
-  // Indices of windows closed from Exposé; they leave the grid, bursting
-  // where they were (frozen holds that last cell).
+  // hyprbars' titlebar, as the theme has it.
+  property var titlebar: ({ height: 0, color: "#353b44", text: "#d2d7da", textSize: 12 })
+  // Screen areas that keep showing what is beneath: the bar and the dock.
+  property var holes: []
+  // Windows closed from Exposé leave the grid, bursting where they were
+  // (frozen holds that last cell).
   property var gone: ({})
   property var frozen: ({})
   // 0 = windows where they are, 1 = laid out in the grid.
   property real progress: 0
   property bool open: false
+  property bool shown: false
   property bool closing: false
   property int selected: -1
   property string chosenAddress: ""
 
-  // Emitted once Exposé is gone, with the window to bring forward or "".
-  signal finished(string address)
-  // Emitted when a window's X is pressed, with that window's address.
+  // A window was picked: raise it now, while the real windows are hidden.
+  signal chose(string address)
+  // Emitted once Exposé is gone.
+  signal finished()
+  // A window's X was pressed.
   signal closeWindow(string address)
 
   readonly property int margin: Math.round(Math.min(width, height) * 0.05)
@@ -49,38 +64,73 @@ PanelWindow {
   WlrLayershell.keyboardFocus: root.open && !root.closing ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
   exclusionMode: ExclusionMode.Ignore
   anchors { top: true; bottom: true; left: true; right: true }
+  // The bar and the dock take their own clicks.
+  mask: Region {
+    item: hitArea
+    Region { item: holeItems.count > 0 ? holeItems.itemAt(0) : null; intersection: Intersection.Subtract }
+    Region { item: holeItems.count > 1 ? holeItems.itemAt(1) : null; intersection: Intersection.Subtract }
+    Region { item: holeItems.count > 2 ? holeItems.itemAt(2) : null; intersection: Intersection.Subtract }
+  }
+  Item { id: hitArea; anchors.fill: parent }
 
-  function show(list) {
+  function show(list, bar, keep) {
     if (root.open || root.closing || !list || list.length === 0) return
     outAnim.stop()
+    root.titlebar = bar || root.titlebar
+    root.holes = keep || []
     root.windows = list
     root.gone = ({})
     root.frozen = ({})
     root.selected = -1
     root.chosenAddress = ""
     root.progress = 0
+    root.shown = false
     root.open = true
-    inAnim.restart()
     keys.forceActiveFocus()
+    readyCheck.restart()
+    readyGuard.restart()
   }
+
+  // Waits for every preview's first frame (or a short moment at most), so
+  // the copies never show up empty over the real windows.
+  function previewsReady() {
+    for (var i = 0; i < tiles.count; i++) {
+      var tile = tiles.itemAt(i)
+      if (tile && !tile.ready) return false
+    }
+    return tiles.count === root.windows.length
+  }
+  function reveal() {
+    if (root.shown || !root.open) return
+    readyCheck.stop()
+    readyGuard.stop()
+    root.shown = true
+    inAnim.restart()
+  }
+  Timer { id: readyCheck; interval: 16; repeat: true; onTriggered: if (root.previewsReady()) root.reveal() }
+  Timer { id: readyGuard; interval: 160; onTriggered: root.reveal() }
 
   // Leaves Exposé; with an address, that window comes forward on top.
   function leave(address) {
     if (!root.open || root.closing) return
     root.chosenAddress = address || ""
+    if (root.chosenAddress) root.chose(root.chosenAddress)
     root.closing = true
+    readyCheck.stop()
+    readyGuard.stop()
     inAnim.stop()
     outAnim.from = root.progress
     outAnim.restart()
   }
 
   function finish() {
-    var address = root.chosenAddress
     root.open = false
     root.closing = false
+    root.shown = false
     root.windows = []
     root.gone = ({})
-    root.finished(address)
+    root.frozen = ({})
+    root.finished()
   }
 
   function alive(index) { return index >= 0 && index < root.windows.length && !root.gone[index] }
@@ -93,7 +143,7 @@ PanelWindow {
   // Closes one window from Exposé: it bursts, the grid closes the gap, and
   // Hyprland closes the window itself.
   function dismiss(index) {
-    if (!root.alive(index) || root.closing) return
+    if (!root.alive(index) || root.closing || !root.shown) return
     var cells = Object.assign({}, root.frozen)
     cells[index] = root.layout[index]
     root.frozen = cells
@@ -110,13 +160,13 @@ PanelWindow {
   NumberAnimation {
     id: inAnim
     target: root; property: "progress"; from: 0; to: 1
-    duration: Style.reduceMotion ? 0 : Style.duration(360)
+    duration: Style.reduceMotion ? 0 : Style.duration(380)
     easing.type: Easing.OutCubic
   }
   NumberAnimation {
     id: outAnim
     target: root; property: "progress"; to: 0
-    duration: Style.reduceMotion ? 0 : Style.duration(300)
+    duration: Style.reduceMotion ? 0 : Style.duration(320)
     easing.type: Easing.InOutCubic
     onFinished: root.finish()
   }
@@ -141,13 +191,13 @@ PanelWindow {
       var cellW = (area.width - (cols - 1) * root.gap) / cols
       var cellH = (area.height - (rows - 1) * root.gap) / rows - root.titleHeight
       if (cellW <= 20 || cellH <= 20) continue
-      var shown = 0
+      var shownArea = 0
       for (var k = 0; k < n; k++) {
         var h = list[indices[k]].home
         var s = Math.min(cellW / h.width, cellH / h.height, 1)
-        shown += h.width * s * h.height * s
+        shownArea += h.width * s * h.height * s
       }
-      if (!best || shown > best.shown) best = { rows: rows, cols: cols, cellW: cellW, cellH: cellH, shown: shown }
+      if (!best || shownArea > best.shown) best = { rows: rows, cols: cols, cellW: cellW, cellH: cellH, shown: shownArea }
     }
     if (!best) return rects
     var used = Math.ceil(n / best.cols)
@@ -215,19 +265,56 @@ PanelWindow {
     Keys.onTabPressed: root.cycleSelection()
   }
 
-  // The dimmed desktop; a click on it leaves.
-  Rectangle {
+  // The desktop without its windows: the wallpaper, dimmed as the windows
+  // spread out, with holes where the bar and the dock show through. It is
+  // there from the first frame, under copies that cover the windows exactly.
+  Item {
+    id: backdrop
     anchors.fill: parent
-    color: Qt.rgba(0, 0, 0, 0.5 * root.progress)
-    MouseArea { anchors.fill: parent; onClicked: root.leave("") }
+    visible: false
+    layer.enabled: true
+    BackgroundMedia {
+      id: wallpaper
+      anchors.fill: parent
+      path: Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
+      cached: true
+      constrainDecode: true
+      decodeSize: Qt.size(Math.round(root.width * (root.screen ? root.screen.devicePixelRatio : 1)), Math.round(root.height * (root.screen ? root.screen.devicePixelRatio : 1)))
+    }
+    Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.42 * root.progress) }
   }
+  Item {
+    id: holeMask
+    anchors.fill: parent
+    visible: false
+    layer.enabled: true
+    Repeater {
+      id: holeItems
+      model: root.holes
+      delegate: Rectangle {
+        required property var modelData
+        x: modelData.x; y: modelData.y; width: modelData.width; height: modelData.height
+        color: "white"
+      }
+    }
+  }
+  MultiEffect {
+    anchors.fill: parent
+    source: backdrop
+    maskEnabled: root.holes.length > 0
+    maskSource: holeMask
+    maskInverted: true
+    visible: root.shown
+  }
+  // A click on the empty space leaves.
+  MouseArea { anchors.fill: parent; enabled: root.shown; onClicked: root.leave("") }
 
   // One particle system for every burst.
   ParticleSystem { id: sparks; anchors.fill: parent }
   ImageParticle {
     system: sparks
     anchors.fill: parent
-    z: 20
+    z: 200
     source: Qt.resolvedUrl("images/particle.png")
     color: Qt.lighter(Commons.Color.accent, 1.35)
     colorVariation: 0.25
@@ -238,19 +325,24 @@ PanelWindow {
   Gravity { system: sparks; anchors.fill: parent; angle: 90; magnitude: 140 }
 
   Repeater {
+    id: tiles
     model: root.windows.length
     delegate: Item {
       id: tile
       required property int index
       readonly property var win: root.windows[index] || null
       readonly property rect home: win ? win.home : Qt.rect(0, 0, 0, 0)
+      readonly property real bar: win ? win.bar : 0
       readonly property bool closed: !!root.gone[index]
       readonly property bool chosen: !!win && root.chosenAddress === win.address
-      readonly property bool hot: (mouse.containsMouse || closeMouse.containsMouse || root.selected === index) && !closed
+      readonly property bool hot: (mouse.containsMouse || closeMouse.containsMouse || root.selected === index) && !closed && root.shown
+      readonly property bool ready: preview.hasContent
       readonly property real p: root.progress
+      // How much the window is scaled right now: the titlebar follows it.
+      readonly property real shrink: home.height > 0 ? height / home.height : 1
 
-      // The cell, eased whenever the grid changes after a window closed.
-      // A closed window bursts where it was in the grid.
+      // The cell, eased whenever the grid changes after a window closed. A
+      // closed window bursts where it was.
       readonly property rect target: closed ? (root.frozen[index] || home) : (root.layout[index] || home)
       property real cx: target.x
       property real cy: target.y
@@ -265,14 +357,16 @@ PanelWindow {
       y: home.y + (cy - home.y) * p
       width: home.width + (cw - home.width) * p
       height: home.height + (ch - home.height) * p
-      z: chosen ? 10 : (hot ? 5 : 1)
+      // Stacked as the windows are (most recently focused on top) while they
+      // are where the windows are; the picked one on top on the way back.
+      z: chosen ? 100 : (hot ? 60 : 50 - (win ? win.stack : 0))
+      visible: root.shown && (!closed || pop < 1)
 
       // Popping: a little bigger, then gone, while the sparks fly.
       property real pop: 0
       opacity: closed ? 1 - pop : 1
       scale: (closed ? 1 + 0.08 * pop : 1) * (hot && !root.closing ? 1.02 : 1)
       Behavior on scale { enabled: !tile.closed; NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
-      visible: !closed || pop < 1
 
       onClosedChanged: if (closed) { burst.burst(Math.round(Math.min(420, 120 + width * height / 900))); popAnim.restart() }
       NumberAnimation { id: popAnim; target: tile; property: "pop"; from: 0; to: 1; duration: Style.duration(220); easing.type: Easing.OutQuad }
@@ -293,10 +387,59 @@ PanelWindow {
         acceleration: PointDirection { xVariation: 40; yVariation: 40 }
       }
 
+      // The titlebar, as hyprbars draws it with the current theme.
+      Rectangle {
+        id: titlebarItem
+        width: parent.width
+        height: tile.bar * tile.shrink
+        visible: tile.bar > 0
+        color: root.titlebar.color
+        Text {
+          // Clear of hyprbars' buttons and of Exposé's X, whichever is wider.
+          readonly property real buttonsRoom: Math.max(closeButton.size + Style.space(14), (3 * 20 + 2 * 8 + 16) * tile.shrink)
+          x: 10 * tile.shrink
+          width: Math.max(0, parent.width - x - buttonsRoom)
+          anchors.verticalCenter: parent.verticalCenter
+          textFormat: Text.PlainText
+          text: tile.win ? tile.win.title : ""
+          elide: Text.ElideRight
+          color: root.titlebar.text
+          font.family: "monospace"
+          font.pixelSize: Math.max(1, root.titlebar.textSize * tile.shrink)
+          visible: font.pixelSize >= 6
+        }
+        // hyprbars' own buttons (− □ ×), where the window has them, so the
+        // copy matches the window; they give way to Exposé's X.
+        Row {
+          anchors.right: parent.right
+          anchors.rightMargin: 10 * tile.shrink
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: 8 * tile.shrink
+          opacity: 1 - Math.min(1, root.progress * 2.5)
+          visible: opacity > 0
+          Repeater {
+            model: ["−", "□", "×"]
+            delegate: Text {
+              required property string modelData
+              width: 20 * tile.shrink
+              horizontalAlignment: Text.AlignHCenter
+              textFormat: Text.PlainText
+              text: modelData
+              color: root.titlebar.text
+              font.family: "monospace"
+              font.pixelSize: Math.max(1, root.titlebar.textSize * tile.shrink)
+            }
+          }
+        }
+      }
+
       ScreencopyView {
         id: preview
-        anchors.fill: parent
-        captureSource: root.visible && tile.win && !tile.closed ? tile.win.toplevel : null
+        x: 0
+        y: titlebarItem.visible ? titlebarItem.height : 0
+        width: parent.width
+        height: parent.height - y
+        captureSource: root.open && tile.win && !tile.closed ? tile.win.toplevel : null
         live: true
       }
 
@@ -318,7 +461,7 @@ PanelWindow {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        enabled: !root.closing && !tile.closed
+        enabled: root.shown && !root.closing && !tile.closed
         onClicked: root.leave(tile.win ? tile.win.address : "")
       }
 
@@ -364,18 +507,20 @@ PanelWindow {
         }
       }
 
-      // The X on the window's corner: closes this window.
+      // The X, in the titlebar's right end (or the window's corner when it
+      // has none): closes this window.
       Rectangle {
         id: closeButton
-        readonly property real size: Style.space(26)
-        x: parent.width - size * 0.6
-        y: -size * 0.4
+        readonly property real barHeight: titlebarItem.visible ? titlebarItem.height : 0
+        readonly property real size: Math.max(Style.space(20), Math.min(Style.space(26), barHeight > 0 ? barHeight * 0.82 : Style.space(24)))
+        x: parent.width - size - Math.max(Style.space(5), (barHeight - size) / 2)
+        y: barHeight > 0 ? (barHeight - size) / 2 : Style.space(6)
         width: size; height: size
         radius: size / 2
-        color: closeMouse.containsMouse ? "#e5484d" : Qt.rgba(0.12, 0.12, 0.14, 0.92)
+        color: closeMouse.containsMouse ? "#e5484d" : Qt.rgba(0, 0, 0, 0.42)
         border.width: 1
-        border.color: closeMouse.containsMouse ? "#ff6369" : Qt.rgba(1, 1, 1, 0.35)
-        opacity: tile.closed ? 0 : root.progress * (tile.hot ? 1 : 0.75)
+        border.color: closeMouse.containsMouse ? "#ff6369" : Qt.rgba(1, 1, 1, 0.28)
+        opacity: tile.closed ? 0 : root.progress * (tile.hot ? 1 : 0.8)
         scale: closeMouse.pressed ? 0.9 : (closeMouse.containsMouse ? 1.1 : 1)
         antialiasing: true
         Behavior on color { ColorAnimation { duration: Style.duration(110) } }
@@ -388,8 +533,8 @@ PanelWindow {
           delegate: Rectangle {
             required property int index
             anchors.centerIn: parent
-            width: closeButton.size * 0.42; height: 2.2
-            radius: 1.1
+            width: closeButton.size * 0.42; height: 2
+            radius: 1
             rotation: index === 0 ? 45 : -45
             color: "white"
             antialiasing: true
@@ -401,7 +546,7 @@ PanelWindow {
           anchors.margins: -4
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          enabled: !root.closing && !tile.closed
+          enabled: root.shown && !root.closing && !tile.closed
           onClicked: root.dismiss(tile.index)
         }
       }

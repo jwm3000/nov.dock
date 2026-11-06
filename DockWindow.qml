@@ -479,7 +479,9 @@ PanelWindow {
   ExposeOverlay {
     id: exposeOverlay
     screen: window.screen
-    onFinished: function(address) {
+    // The picked window is raised while Exposé still hides the windows, so
+    // they are stacked as shown once it is gone.
+    onChose: function(address) {
       if (address && window.dock) window.dock.bringForward({ address: address, minimized: false })
     }
     onCloseWindow: function(address) {
@@ -489,9 +491,21 @@ PanelWindow {
         Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.window.close({ window = \"address:" + target + "\" })"])
     }
   }
-  function openExpose(list) {
+  function openExpose(list, titlebar) {
     window.closeMenu()
-    exposeOverlay.show(list)
+    // The bar's reserved strip and the dock stay visible through Exposé.
+    var holes = []
+    var reserved = monitor && monitor.lastIpcObject && monitor.lastIpcObject.reserved ? monitor.lastIpcObject.reserved : [0, 0, 0, 0]
+    var w = window.screen.width, h = window.screen.height
+    if (reserved[1] > 0) holes.push(Qt.rect(0, 0, w, reserved[1]))
+    if (reserved[3] > 0) holes.push(Qt.rect(0, h - reserved[3], w, reserved[3]))
+    if (reserved[0] > 0) holes.push(Qt.rect(0, 0, reserved[0], h))
+    if (reserved[2] > 0) holes.push(Qt.rect(w - reserved[2], 0, reserved[2], h))
+    if (window.contentShown) {
+      var at = window.origin()
+      holes.push(Qt.rect(at.x + body.x - 6, at.y + body.y - 6, body.width + 12, body.height + 12))
+    }
+    exposeOverlay.show(list, titlebar, holes.slice(0, 3))
   }
   function closeExpose() { exposeOverlay.leave("") }
   function exposeOpen() { return exposeOverlay.open }

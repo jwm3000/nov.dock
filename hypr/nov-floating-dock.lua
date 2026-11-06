@@ -207,6 +207,4 @@ if file then
     action = function() hl.exec_cmd("omarchy-shell -q omarchy.dock exposeClose") end,
   })
 
-  -- The dimmed desktop behind Exposé is blurred too.
-  hl.layer_rule({ match = { namespace = "^nov-dock-expose$" }, blur = true, ignore_alpha = 0.1 })
 end
