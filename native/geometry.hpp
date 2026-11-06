@@ -161,13 +161,16 @@ namespace AeroSnap {
         return Zone::None;
     }
 
-    // The entire upper edge means fullscreen; side edges mean exact halves.
-    // Stay inside this monitor, including negative origins and fractional scale.
-    inline Zone dockZoneAt(const Point cursor, const Rect monitor, const double threshold) {
+    // The upper edge maximizes; side edges mean exact halves. The upper zone
+    // starts at the lower edge of a top bar (topInset, the space it reserves),
+    // so a window dragged up maximizes as soon as it reaches the bar, and
+    // still does when pushed on into it. Stay inside this monitor, including
+    // negative origins and fractional scale.
+    inline Zone dockZoneAt(const Point cursor, const Rect monitor, const double threshold, const double topInset = 0) {
         if (monitor.w <= 0 || monitor.h <= 0 || threshold < 0 || cursor.x < monitor.x || cursor.y < monitor.y ||
             cursor.x > monitor.x + monitor.w || cursor.y > monitor.y + monitor.h)
             return Zone::None;
-        if (cursor.y <= monitor.y + threshold) return Zone::Maximize;
+        if (cursor.y <= monitor.y + std::max(0.0, topInset) + threshold) return Zone::Maximize;
         if (cursor.x <= monitor.x + threshold) return Zone::LeftHalf;
         if (cursor.x >= monitor.x + monitor.w - threshold) return Zone::RightHalf;
         return Zone::None;

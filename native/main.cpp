@@ -586,8 +586,11 @@ namespace {
             return;
         }
 
-        const auto monitorBox        = monitor->logicalBox();
-        const auto zone = AeroSnap::dockZoneAt({cursor.x, cursor.y}, toRect(monitorBox), state->config.edgeThreshold->value());
+        const auto monitorBox = monitor->logicalBox();
+        // The space a top bar reserves: the maximize zone begins below it.
+        const auto workspace = activeWorkspace(monitor);
+        const double topInset = workspace && workspace->m_space ? std::max(0.0, workspace->m_space->workArea(true).y - monitorBox.y) : 0.0;
+        const auto zone = AeroSnap::dockZoneAt({cursor.x, cursor.y}, toRect(monitorBox), state->config.edgeThreshold->value(), topInset);
         const auto placement = placementFor(target, monitor, zone);
         if (!placement) {
             clearPreview();

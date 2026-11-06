@@ -17,5 +17,13 @@ int main() {
     const auto left = rectForZone(scaled, Zone::LeftHalf, 0, 0, 2);
     const auto right = rectForZone(scaled, Zone::RightHalf, 0, 0, 2);
     assert(left && right && left->w == right->w && left->x + left->w == right->x);
+    // With a 30 px bar on top, the maximize zone reaches down to its lower
+    // edge plus the threshold, and still covers the bar itself.
+    const Rect laptop{0, 0, 1440, 900};
+    assert(dockZoneAt({700, 40}, laptop, 12, 30) == Zone::Maximize);
+    assert(dockZoneAt({700, 42}, laptop, 12, 30) == Zone::Maximize);
+    assert(dockZoneAt({700, 15}, laptop, 12, 30) == Zone::Maximize);
+    assert(dockZoneAt({700, 43}, laptop, 12, 30) == Zone::None);
+    assert(dockZoneAt({700, 40}, laptop, 12) == Zone::None);
     std::cout << "Floating Dock edge geometry passed\n";
 }

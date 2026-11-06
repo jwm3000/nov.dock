@@ -42,7 +42,7 @@ Click the Downloads folder and your latest downloads fan out above it, the newes
 ### Snapping that keeps the dock visible
 
 - Drag a window to the **left or right edge** and it fills that half of the screen, stopping just above the dock.
-- Drag it to the **top edge** and it is maximized (not fullscreen): the bar stays, and the dock steps aside until you need it.
+- Drag it **up to the bar** (its lower edge is enough) and it is maximized (not fullscreen): the bar stays, and the dock steps aside until you need it.
 
 The same works from the keyboard, but only while a window on a floating workspace has focus, so apps elsewhere keep these keys:
 
@@ -65,7 +65,7 @@ As on macOS, you can scroll any window just by pointing at it. Keyboard focus st
 Swipe up with three fingers on a floating workspace and every floating window flies into a grid, side by side, as in macOS's Exposé. The windows seem to turn into the overview themselves: each preview starts exactly over its window, titlebar included in your theme's colors, while the desktop behind them clears to the wallpaper. The bar and the dock stay where they are. The grid keeps each window's proportions and roughly where it was, with a live preview and the app and title below each window.
 
 - **Click a window** to bring it to the front.
-- **The X in a window's titlebar** closes that window: it pops, bursts into particles, and the others slide up to fill the gap.
+- **The X on a window's top right corner** closes that window: it pops, bursts into particles, and the others slide up to fill the gap.
 - **To leave**, swipe down with three fingers, press Esc, or click the empty space.
 - **From the keyboard**, the arrow keys or Tab pick a window, Enter opens it, and Delete closes it.
 

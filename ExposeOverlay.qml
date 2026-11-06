@@ -395,8 +395,8 @@ PanelWindow {
         visible: tile.bar > 0
         color: root.titlebar.color
         Text {
-          // Clear of hyprbars' buttons and of Exposé's X, whichever is wider.
-          readonly property real buttonsRoom: Math.max(closeButton.size + Style.space(14), (3 * 20 + 2 * 8 + 16) * tile.shrink)
+          // Clear of hyprbars' buttons and of the X on the corner.
+          readonly property real buttonsRoom: Math.max(closeButton.size / 2 + Style.space(8), (3 * 20 + 2 * 8 + 16) * tile.shrink)
           x: 10 * tile.shrink
           width: Math.max(0, parent.width - x - buttonsRoom)
           anchors.verticalCenter: parent.verticalCenter
@@ -507,19 +507,19 @@ PanelWindow {
         }
       }
 
-      // The X, in the titlebar's right end (or the window's corner when it
-      // has none): closes this window.
+      // The X, centred on the window's top right corner: closes this window.
       Rectangle {
         id: closeButton
-        readonly property real barHeight: titlebarItem.visible ? titlebarItem.height : 0
-        readonly property real size: Math.max(Style.space(20), Math.min(Style.space(26), barHeight > 0 ? barHeight * 0.82 : Style.space(24)))
-        x: parent.width - size - Math.max(Style.space(5), (barHeight - size) / 2)
-        y: barHeight > 0 ? (barHeight - size) / 2 : Style.space(6)
+        readonly property real size: Style.space(26)
+        x: parent.width - size / 2
+        y: -size / 2
         width: size; height: size
         radius: size / 2
-        color: closeMouse.containsMouse ? "#e5484d" : Qt.rgba(0, 0, 0, 0.42)
-        border.width: 1
-        border.color: closeMouse.containsMouse ? "#ff6369" : Qt.rgba(1, 1, 1, 0.28)
+        // Dark with a light ring, so it reads over the titlebar and over the
+        // wallpaper alike.
+        color: closeMouse.containsMouse ? "#e5484d" : Qt.rgba(0.1, 0.1, 0.12, 0.92)
+        border.width: 1.5
+        border.color: closeMouse.containsMouse ? "#ff6369" : Qt.rgba(1, 1, 1, 0.55)
         opacity: tile.closed ? 0 : root.progress * (tile.hot ? 1 : 0.8)
         scale: closeMouse.pressed ? 0.9 : (closeMouse.containsMouse ? 1.1 : 1)
         antialiasing: true
