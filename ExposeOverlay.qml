@@ -440,7 +440,9 @@ PanelWindow {
   MouseArea { anchors.fill: parent; enabled: root.shown; onClicked: root.leave("") }
 
   // One particle system for every burst.
-  ParticleSystem { id: sparks; anchors.fill: parent }
+  // Runs only while Exposé is up: a running particle system ticks every
+  // frame, even with no particles to draw.
+  ParticleSystem { id: sparks; anchors.fill: parent; running: root.open || root.closing }
   ImageParticle {
     system: sparks
     anchors.fill: parent
