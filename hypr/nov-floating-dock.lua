@@ -215,7 +215,7 @@ end
 if file then
   hl.window_rule({
     name = "nov-dock-own-titlebar",
-    match = { class = "^(chromium|google-chrome|org\\.gnome\\.Nautilus|ai\\.storyteller\\.photocraft)$" },
+    match = { class = "^(chromium|google-chrome|ai\\.storyteller\\.photocraft)$" },
     tag = "+nov-dock-no-titlebar",
     ["hyprbars:no_bar"] = true,
   })
