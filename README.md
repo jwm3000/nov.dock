@@ -61,7 +61,7 @@ On a floating workspace, a window opening over a maximized one opens at its own 
 
 ### No double titlebars
 
-Apps that draw their own titlebar (Chromium and Google Chrome with their tab strip, Nautilus and PhotoCraft with their header bar) get no second titlebar from hyprbars on floating workspaces.
+Apps that draw their own titlebar (Chromium and Google Chrome with their tab strip, PhotoCraft with its header bar) get no second titlebar from hyprbars on floating workspaces.
 
 ### Scroll the window under the pointer
 
