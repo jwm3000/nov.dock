@@ -71,7 +71,7 @@ As on macOS, you can scroll any window just by pointing at it. Keyboard focus st
 
 ### Exposé
 
-Swipe up with three fingers on a floating workspace and every floating window flies into a grid, side by side, as in macOS's Exposé. The overview follows your fingers like the workspace swipe: hold it halfway, push it back or carry it on, and it settles the way you were moving when you lift them. The windows seem to turn into the overview themselves: each preview starts exactly over its window, titlebar included in your theme's colors, while the desktop behind them clears to the wallpaper. The bar and the dock stay where they are. The grid keeps each window's proportions and roughly where it was, with a live preview and the app and title below each window.
+Swipe up with three fingers on a floating workspace and every floating window flies into a grid, side by side, as in macOS's Exposé. The overview follows your fingers like the workspace swipe: hold it halfway, push it back or carry it on. When you lift them, how far you got decides: from a third of the way on it completes, short of that it goes back to the desktop (and the same, downwards, for leaving). The windows seem to turn into the overview themselves: each preview starts exactly over its window, titlebar included in your theme's colors, while the desktop behind them clears to the wallpaper. The bar and the dock stay where they are. The grid keeps each window's proportions and roughly where it was, with a live preview and the app and title below each window.
 
 - **Click a window** to bring it to the front with keyboard focus, maximized windows included.
 - **The X on a window's top right corner** closes that window: it pops, bursts into particles, and the others slide up to fill the gap.

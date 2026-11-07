@@ -217,10 +217,12 @@ if file then
       end,
       update = function(e)
         if not active or not e or not e.delta then return end
-        travel = travel - (e.delta.y or 0)
+        -- Hyprland reports the swipe up as a positive delta.
+        travel = travel + (e.delta.y or 0)
         send(string.format("move %.4f", travel / SWIPE))
       end,
-      ["end"] = function(e)
+      -- Hyprland calls the end of a gesture "finish".
+      finish = function(e)
         if not active then return end
         active = false
         send((e and e.cancelled) and "end cancel" or "end done")

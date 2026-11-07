@@ -74,8 +74,11 @@ PanelWindow {
   Item { id: hitArea; anchors.fill: parent }
 
   // Driven by the three-finger swipe: the fingers set the progress while
-  // they move (from where it stood when they touched down), and on lifting
-  // the last direction decides, or the halfway mark when they were still.
+  // they move (from where it stood when they touched down). On lifting, how
+  // far they went decides: a third of the way or more carries on to the
+  // end, less goes back to where the swipe started. A cancelled swipe goes
+  // back too.
+  readonly property real commitDistance: 0.35
   property bool gestureActive: false
   property bool gestureEnded: false
   property bool gestureOpens: false
@@ -91,18 +94,26 @@ PanelWindow {
     root.gestureFrom = root.open && root.shown && !root.closing ? root.progress : 0
     root.gestureValue = root.gestureFrom
     if (root.open && root.shown && !root.closing) { inAnim.stop(); outAnim.stop() }
+    gestureIdle.restart()
   }
+  // Should the end of a swipe never arrive, it settles once the fingers
+  // have been still for a moment, so it can never stay halfway.
+  Timer { id: gestureIdle; interval: 700; onTriggered: root.gestureEnd(false) }
   function gestureMove(travel) {
     if (!root.gestureActive) return
     var value = Math.max(0, Math.min(1, root.gestureFrom + travel))
     root.gestureStep = value - root.gestureValue
     root.gestureValue = value
+    gestureIdle.restart()
     if (root.open && root.shown && !root.closing) root.progress = value
   }
   function gestureEnd(cancelled) {
     if (!root.gestureActive) return
     root.gestureActive = false
-    var opens = !cancelled && (root.gestureStep > 0.002 || (Math.abs(root.gestureStep) <= 0.002 && root.gestureValue > 0.5))
+    gestureIdle.stop()
+    var fromOpen = root.gestureFrom >= 0.5
+    var opens = cancelled ? fromOpen
+      : (fromOpen ? root.gestureValue > 1 - root.commitDistance : root.gestureValue >= root.commitDistance)
     if (root.open && root.shown && !root.closing) {
       root.settle(opens)
     } else {
