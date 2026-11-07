@@ -55,6 +55,14 @@ The same works from the keyboard, but only while a window on a floating workspac
 
 <p align="center"><img src="docs/images/snap-halves.png" alt="Two windows snapped to the halves, ending above the dock" width="440"> &nbsp; <img src="docs/images/maximize.png" alt="A maximized window: the bar stays visible" width="440"></p>
 
+### Maximized windows stay maximized
+
+On a floating workspace, a window opening over a maximized one opens at its own size, in front and focused. The maximized window stays maximized behind it, rather than handing its maximized state to the new window or being un-maximized.
+
+### No double titlebars
+
+Apps that draw their own titlebar (Chromium and Google Chrome with their tab strip, Nautilus and PhotoCraft with their header bar) get no second titlebar from hyprbars on floating workspaces.
+
 ### Scroll the window under the pointer
 
 As on macOS, you can scroll any window just by pointing at it. Keyboard focus stays where it was, so typing still goes to the focused window, and a click moves focus as usual. This applies to floating workspaces only; tiled workspaces keep their own focus setting.

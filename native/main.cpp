@@ -121,6 +121,8 @@ namespace {
         CHyprSignalListener       windowDestroyListener;
         CHyprSignalListener       windowFloatingListener;
         CHyprSignalListener       windowActiveListener;
+        CHyprSignalListener       windowOpenListener;
+        std::vector<UP<SEventLoopDoLaterLock>> keepMaximized;
         bool                      swallowRelease = false;
     };
 
@@ -694,6 +696,46 @@ namespace {
         }
     }
 
+    // A window opening over a maximized one takes the maximized state from
+    // it (Hyprland, as the new window is not floating yet when it maps), and
+    // Omarchy's floating mode then un-maximizes the others. On a floating
+    // workspace the maximized window stays maximized instead: once the new
+    // window has opened, the old one is maximized again and the new one is
+    // drawn over it, focused, at its own size.
+    void onWindowOpen(const PHLWINDOW& window) {
+        if (!state || !window || !window->m_workspace)
+            return;
+        const auto workspace = window->m_workspace;
+        const auto maximized = Fullscreen::controller()->getFullscreenWindow(workspace);
+        // Only where windows float (a floating workspace): a maximized tiled
+        // window keeps Hyprland's behaviour.
+        if (!maximized || maximized == window || !maximized->m_isFloating || !Fullscreen::controller()->isFullscreen(maximized, Fullscreen::FSMODE_MAXIMIZED))
+            return;
+        const PHLWINDOWREF opened = window;
+        const PHLWINDOWREF keep   = maximized;
+        state->keepMaximized.emplace_back(g_pEventLoopManager->doLaterLock([opened, keep] {
+            const auto w = opened.lock();
+            const auto m = keep.lock();
+            if (!state || !Desktop::View::validMapped(w) || !Desktop::View::validMapped(m) || w->m_workspace != m->m_workspace)
+                return;
+            if (Fullscreen::controller()->isFullscreen(w))
+                Fullscreen::controller()->setFullscreenMode(w, Fullscreen::FSMODE_NONE);
+            if (!Fullscreen::controller()->isFullscreen(m, Fullscreen::FSMODE_MAXIMIZED))
+                Fullscreen::controller()->setFullscreenMode(m, Fullscreen::FSMODE_MAXIMIZED);
+            w->m_allowedOverFullscreen = true;
+            w->updateFullscreenInputState();
+            Animation::Workspace::setFullscreenFloatingFade(w, 1.F);
+            Desktop::windowState()->raise(w);
+            // The new window has the focus, in front of the maximized one.
+            Desktop::focusState()->fullWindowFocus(w, Desktop::FOCUS_REASON_OTHER);
+            g_pHyprRenderer->damageWindow(w);
+            g_pHyprRenderer->damageWindow(m);
+        }));
+        // Done ones are dropped as new ones come in.
+        if (state->keepMaximized.size() > 8)
+            state->keepMaximized.erase(state->keepMaximized.begin(), state->keepMaximized.end() - 8);
+    }
+
     void onMouseButton(const IPointer::SButtonEvent event, Event::SCallbackInfo& info) {
         if (!state || event.button != BTN_LEFT)
             return;
@@ -886,6 +928,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         if (state->drag && state->drag->target && state->drag->target->window() == window.lock())
             resetDrag();
     });
+    state->windowOpenListener = Event::bus()->m_events.window.open.listen([](PHLWINDOW window) { onWindowOpen(window); });
     state->windowActiveListener = Event::bus()->m_events.window.active.listen([](PHLWINDOW window, Desktop::eFocusReason) { onWindowActive(window); });
     state->windowFloatingListener = Event::bus()->m_events.window.floating.listen([](PHLWINDOW window) {
         if (state && Desktop::View::validMapped(window) && window->m_target && !window->m_target->floating())
@@ -909,5 +952,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
     state->windowDestroyListener.reset();
     state->windowFloatingListener.reset();
     state->windowActiveListener.reset();
+    state->windowOpenListener.reset();
+    state->keepMaximized.clear();
     state.reset();
 }

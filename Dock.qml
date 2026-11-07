@@ -231,8 +231,10 @@ Item {
           if (!top || !top.wayland) continue
           var entry = c.class ? root.entryForAppId(c.class) : null
           // Floating windows carry hyprbars' titlebar above their content,
-          // except those with a rule against it (Spotifast in Winamp mode).
-          var bar = (c.tags || []).indexOf("spotifast-winamp") >= 0 ? 0 : titlebar.height
+          // except those with a rule against it: apps with a titlebar of their
+          // own, and Spotifast in Winamp mode. Tags set by a rule end in "*".
+          var tags = (c.tags || []).map(function(tag) { return String(tag).replace(/\*$/, "") })
+          var bar = tags.indexOf("nov-dock-no-titlebar") >= 0 || tags.indexOf("spotifast-winamp") >= 0 ? 0 : titlebar.height
           list.push({
             address: c.address,
             title: String(c.title || c.class || ""),

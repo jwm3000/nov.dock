@@ -208,3 +208,15 @@ if file then
   })
 
 end
+
+-- Apps that draw their own titlebar (a tab strip or a header bar) get no
+-- second one from hyprbars on floating workspaces. The tag tells the dock's
+-- Exposé to draw none either.
+if file then
+  hl.window_rule({
+    name = "nov-dock-own-titlebar",
+    match = { class = "^(chromium|google-chrome|org\\.gnome\\.Nautilus|ai\\.storyteller\\.photocraft)$" },
+    tag = "+nov-dock-no-titlebar",
+    ["hyprbars:no_bar"] = true,
+  })
+end
