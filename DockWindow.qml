@@ -494,9 +494,15 @@ PanelWindow {
   function exposeGestureBegin() { exposeOverlay.gestureBegin() }
   function exposeGestureMove(travel) { exposeOverlay.gestureMove(travel) }
   function exposeGestureEnd(cancelled) { exposeOverlay.gestureEnd(cancelled) }
+  function prepareExpose(list, titlebar) { exposeOverlay.prepare(list, titlebar, window.exposeHoles()) }
+  function showPreparedExpose() { window.closeMenu(); exposeOverlay.show(null, null, null, true) }
+  function discardExpose() { exposeOverlay.discard() }
   function openExpose(list, titlebar, interactive) {
     window.closeMenu()
-    // The bar's reserved strip and the dock stay visible through Exposé.
+    exposeOverlay.show(list, titlebar, window.exposeHoles(), interactive === true)
+  }
+  // The bar's reserved strip and the dock stay visible through Exposé.
+  function exposeHoles() {
     var holes = []
     var reserved = monitor && monitor.lastIpcObject && monitor.lastIpcObject.reserved ? monitor.lastIpcObject.reserved : [0, 0, 0, 0]
     var w = window.screen.width, h = window.screen.height
@@ -508,7 +514,7 @@ PanelWindow {
       var at = window.origin()
       holes.push(Qt.rect(at.x + body.x - 6, at.y + body.y - 6, body.width + 12, body.height + 12))
     }
-    exposeOverlay.show(list, titlebar, holes.slice(0, 3), interactive === true)
+    return holes.slice(0, 3)
   }
   function closeExpose() { exposeOverlay.leave("") }
   function exposeOpen() { return exposeOverlay.open }

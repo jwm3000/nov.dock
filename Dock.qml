@@ -191,29 +191,50 @@ Item {
   // The three-finger swipe, as the Hyprland hook reports it: "begin", then
   // "move <travel>" (1 = a full swipe up, negative down), then "end done" or
   // "end cancel". Exposé follows the fingers on the focused screen.
-  // With Exposé closed, a swipe only starts it once the fingers move up: a
-  // swipe down on the desktop does nothing at all.
+  // The swipe: as the fingers touch down (Exposé closed) the windows are
+  // fetched and Exposé is prepared out of sight, so by the first move up
+  // everything is ready and it follows at once. A swipe that never goes up
+  // shows nothing and is let go again.
   property var gestureDock: null
-  property bool gestureLoading: false
+  property bool gestureWantsOpen: false
+  property bool gestureLoaded: false
+  property bool gestureOver: true
   function exposeGesture(message) {
     var parts = String(message || "").split(" ")
     if (parts[0] === "begin") {
       var dock = root.focusedDock()
       root.gestureDock = dock
-      root.gestureLoading = false
+      root.gestureWantsOpen = false
+      root.gestureLoaded = false
+      root.gestureOver = false
       if (!dock) return
       dock.exposeGestureBegin()
+      if (!dock.exposeOpen()) root.loadExpose(dock, true)
     } else if (parts[0] === "move") {
       var travel = parseFloat(parts[1]) || 0
       var target = root.gestureDock
       if (!target) return
-      if (!target.exposeOpen() && !root.gestureLoading && travel > 0.02)
-        root.gestureLoading = root.loadExpose(target, true)
+      if (!target.exposeOpen() && !root.gestureWantsOpen && travel > 0.02) {
+        root.gestureWantsOpen = true
+        if (root.gestureLoaded) target.showPreparedExpose()
+      }
       target.exposeGestureMove(travel)
     } else if (parts[0] === "end") {
-      if (root.gestureDock) root.gestureDock.exposeGestureEnd(parts[1] === "cancel")
+      var ending = root.gestureDock
+      root.gestureOver = true
+      if (ending) ending.exposeGestureEnd(parts[1] === "cancel")
       root.gestureDock = null
     }
+  }
+  // The windows for a swipe have arrived.
+  function exposeLoaded(dock, data) {
+    if (!dock) return
+    if (!data) { dock.discardExpose(); return }
+    // Arrived after a swipe that never went up: nothing to show.
+    if (root.gestureOver && !root.gestureWantsOpen) { dock.discardExpose(); return }
+    root.gestureLoaded = true
+    dock.prepareExpose(data.list, data.titlebar)
+    if (root.gestureWantsOpen) dock.showPreparedExpose()
   }
   // The window picked in Exposé: focused and in front. A maximized window is
   // not raised above windows that were focused over it, so those go below
@@ -248,13 +269,15 @@ Item {
     property int workspace: -1
     property var dock: null
     property bool interactive: false
-    command: ["sh", "-c", "hyprctl clients -j; echo '@@nov-dock@@'; for o in bar_height bar_color col.text bar_text_size; do hyprctl getoption plugin:hyprbars:$o -j 2>/dev/null | tr -d '\\n'; echo; done"]
+    // One batched request (about a quarter of the time of five calls); the
+    // replies come separated by blank lines.
+    command: ["hyprctl", "--batch", "-j", "clients; getoption plugin:hyprbars:bar_height; getoption plugin:hyprbars:bar_color; getoption plugin:hyprbars:col.text; getoption plugin:hyprbars:bar_text_size"]
     stdout: StdioCollector {
       onStreamFinished: {
-        var parts = text.split("@@nov-dock@@")
+        var parts = String(text || "").split(/\n\s*\n/).filter(function(part) { return part.trim().length > 0 })
         var clients = []
-        try { clients = JSON.parse(parts[0]) } catch (error) { return }
-        var titlebar = root.parseTitlebar(String(parts[1] || "").trim().split("\n"))
+        try { clients = JSON.parse(parts[0]) } catch (error) { root.exposeLoaded(exposeProc.dock, null); return }
+        var titlebar = root.parseTitlebar(parts.slice(1, 5).map(function(part) { return part.replace(/\n/g, "") }))
         var dock = exposeProc.dock
         if (!dock) return
         var byAddress = {}
@@ -285,7 +308,8 @@ Item {
             toplevel: top.wayland
           })
         }
-        dock.openExpose(list, titlebar, exposeProc.interactive)
+        if (exposeProc.interactive) root.exposeLoaded(dock, { list: list, titlebar: titlebar })
+        else dock.openExpose(list, titlebar, false)
       }
     }
   }

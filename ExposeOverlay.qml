@@ -57,7 +57,10 @@ PanelWindow {
   readonly property var layout: root.computeLayout(root.windows, root.gone,
     Qt.rect(root.margin, root.topRoom, root.width - root.margin * 2, root.height - root.topRoom - root.margin))
 
-  visible: root.open || root.closing
+  // Mapped from the moment a swipe begins (prepared), so the surface, the
+  // window list and the first frames of the previews are ready by the time
+  // the fingers have moved far enough to show anything.
+  visible: root.open || root.closing || root.prepared
   color: "transparent"
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.namespace: "nov-dock-expose"
@@ -65,35 +68,76 @@ PanelWindow {
   exclusionMode: ExclusionMode.Ignore
   anchors { top: true; bottom: true; left: true; right: true }
   // The bar and the dock take their own clicks.
+  // While only prepared, it takes no input at all.
   mask: Region {
-    item: hitArea
+    item: root.open ? hitArea : null
     Region { item: holeItems.count > 0 ? holeItems.itemAt(0) : null; intersection: Intersection.Subtract }
     Region { item: holeItems.count > 1 ? holeItems.itemAt(1) : null; intersection: Intersection.Subtract }
     Region { item: holeItems.count > 2 ? holeItems.itemAt(2) : null; intersection: Intersection.Subtract }
   }
   Item { id: hitArea; anchors.fill: parent }
 
-  // Driven by the three-finger swipe: the fingers set the progress while
-  // they move (from where it stood when they touched down). On lifting, how
-  // far they went decides: a third of the way or more carries on to the
-  // end, less goes back to where the swipe started. A cancelled swipe goes
-  // back too.
+
+  // The motion: one critically damped spring moves the progress toward its
+  // target, frame by frame in step with the display. The fingers move the
+  // target while they are down (the spring smooths their uneven events);
+  // lifting them only changes the target, so their speed carries straight
+  // into the settling, and opening or leaving by key or click use the same
+  // spring. Stiffer while following the fingers, a touch softer settling.
+  property real target: 0
+  property real velocity: 0
+  property bool moving: false
+  FrameAnimation {
+    running: root.moving && root.visible
+    onTriggered: root.step(frameTime)
+  }
+  function moveTo(value) {
+    root.target = Math.max(0, Math.min(1, value))
+    if (Style.reduceMotion) {
+      root.progress = root.target
+      root.velocity = 0
+      root.settled()
+      return
+    }
+    root.moving = true
+  }
+  function step(dt) {
+    var t = Math.min(Math.max(dt, 0.001), 1 / 30)
+    var omega = root.gestureActive ? 40 : 26
+    var accel = -omega * omega * (root.progress - root.target) - 2 * omega * root.velocity
+    root.velocity += accel * t
+    var next = root.progress + root.velocity * t
+    if (next < 0 || next > 1) { next = Math.max(0, Math.min(1, next)); root.velocity = 0 }
+    root.progress = next
+    if (Math.abs(root.progress - root.target) < 0.0008 && Math.abs(root.velocity) < 0.03) {
+      root.progress = root.target
+      root.velocity = 0
+      root.moving = false
+      root.settled()
+    }
+  }
+  function settled() {
+    if (root.closing && root.target === 0) root.finish()
+  }
+
+  // Driven by the three-finger swipe: while the fingers are down they set
+  // the target (from where Exposé stood when they touched down). On lifting,
+  // how far they went decides: a third of the way or more completes it, less
+  // goes back to where the swipe started. A cancelled swipe goes back too.
   readonly property real commitDistance: 0.35
   property bool gestureActive: false
   property bool gestureEnded: false
   property bool gestureOpens: false
   property real gestureFrom: 0
   property real gestureValue: 0
-  property real gestureStep: 0
   property bool interactive: false
+  property bool prepared: false
 
   function gestureBegin() {
     root.gestureActive = true
     root.gestureEnded = false
-    root.gestureStep = 0
-    root.gestureFrom = root.open && root.shown && !root.closing ? root.progress : 0
+    root.gestureFrom = root.open && root.shown && !root.closing ? root.target : 0
     root.gestureValue = root.gestureFrom
-    if (root.open && root.shown && !root.closing) { inAnim.stop(); outAnim.stop() }
     gestureIdle.restart()
   }
   // Should the end of a swipe never arrive, it settles once the fingers
@@ -101,11 +145,9 @@ PanelWindow {
   Timer { id: gestureIdle; interval: 700; onTriggered: root.gestureEnd(false) }
   function gestureMove(travel) {
     if (!root.gestureActive) return
-    var value = Math.max(0, Math.min(1, root.gestureFrom + travel))
-    root.gestureStep = value - root.gestureValue
-    root.gestureValue = value
+    root.gestureValue = Math.max(0, Math.min(1, root.gestureFrom + travel))
     gestureIdle.restart()
-    if (root.open && root.shown && !root.closing) root.progress = value
+    if (root.open && root.shown && !root.closing) root.moveTo(root.gestureValue)
   }
   function gestureEnd(cancelled) {
     if (!root.gestureActive) return
@@ -115,30 +157,21 @@ PanelWindow {
     var opens = cancelled ? fromOpen
       : (fromOpen ? root.gestureValue > 1 - root.commitDistance : root.gestureValue >= root.commitDistance)
     if (root.open && root.shown && !root.closing) {
-      root.settle(opens)
-    } else {
-      // Still loading the windows: settle once they are shown.
+      if (opens) root.moveTo(1)
+      else root.leave("")
+    } else if (root.open) {
+      // Shown in a moment: settle then.
       root.gestureEnded = true
       root.gestureOpens = opens
-    }
-  }
-  // The rest of the way, at the speed of a full animation.
-  function settle(opens) {
-    if (opens) {
-      inAnim.from = root.progress
-      inAnim.duration = Math.max(Style.duration(140), Style.duration(380) * (1 - root.progress))
-      inAnim.restart()
+    } else if (!opens) {
+      root.discard()
     } else {
-      root.leave("")
+      root.gestureEnded = true
+      root.gestureOpens = true
     }
   }
 
-  function show(list, bar, keep, gesture) {
-    if (root.open || root.closing || !list || list.length === 0) return
-    // A swipe that already ended downwards opens nothing.
-    if (gesture && root.gestureEnded && !root.gestureOpens) { root.gestureEnded = false; return }
-    root.interactive = gesture === true
-    outAnim.stop()
+  function setUp(list, bar, keep) {
     root.titlebar = bar || root.titlebar
     root.holes = keep || []
     root.windows = list
@@ -147,11 +180,38 @@ PanelWindow {
     root.selected = -1
     root.chosenAddress = ""
     root.progress = 0
+    root.target = 0
+    root.velocity = 0
+    root.moving = false
     root.shown = false
+  }
+
+  // A swipe has begun: get everything ready, invisibly.
+  function prepare(list, bar, keep) {
+    if (root.open || root.closing || !list || list.length === 0) return
+    root.setUp(list, bar, keep)
+    root.prepared = true
+  }
+  // The swipe went nowhere: let it go again.
+  function discard() {
+    if (root.open || root.closing) return
+    root.prepared = false
+    root.windows = []
+  }
+
+  function show(list, bar, keep, gesture) {
+    if (root.open || root.closing) return
+    var usePrepared = (!list || list.length === 0) && root.prepared
+    if (!usePrepared && (!list || list.length === 0)) return
+    // A swipe that already ended short of opening opens nothing.
+    if (gesture && root.gestureEnded && !root.gestureOpens) { root.gestureEnded = false; root.discard(); return }
+    root.interactive = gesture === true
+    if (!usePrepared) root.setUp(list, bar, keep)
+    root.prepared = false
     root.open = true
     keys.forceActiveFocus()
-    readyCheck.restart()
-    readyGuard.restart()
+    if (root.previewsReady()) root.reveal()
+    else { readyCheck.restart(); readyGuard.restart() }
   }
 
   // Waits for every preview's first frame (or a short moment at most), so
@@ -163,22 +223,28 @@ PanelWindow {
     }
     return tiles.count === root.windows.length
   }
+  // Starts at the windows themselves and lets the spring take it from there:
+  // to the fingers while a swipe is on, else open, even when a fast swipe
+  // has already ended, so the flight is always seen.
   function reveal() {
     if (root.shown || !root.open) return
     readyCheck.stop()
     readyGuard.stop()
     root.shown = true
-    if (root.interactive && (root.gestureActive || root.gestureEnded)) {
-      root.progress = root.gestureValue
-      if (root.gestureEnded) { root.gestureEnded = false; root.settle(root.gestureOpens) }
+    root.progress = 0
+    root.velocity = 0
+    if (root.interactive && root.gestureEnded) {
+      root.gestureEnded = false
+      if (root.gestureOpens) root.moveTo(1)
+      else root.leave("")
+    } else if (root.interactive && root.gestureActive) {
+      root.moveTo(root.gestureValue)
     } else {
-      inAnim.from = 0
-      inAnim.duration = Style.reduceMotion ? 0 : Style.duration(380)
-      inAnim.restart()
+      root.moveTo(1)
     }
   }
-  Timer { id: readyCheck; interval: 16; repeat: true; onTriggered: if (root.previewsReady()) root.reveal() }
-  Timer { id: readyGuard; interval: 160; onTriggered: root.reveal() }
+  Timer { id: readyCheck; interval: 8; repeat: true; onTriggered: if (root.previewsReady()) root.reveal() }
+  Timer { id: readyGuard; interval: 120; onTriggered: root.reveal() }
 
   // Leaves Exposé; with an address, that window comes forward on top.
   function leave(address) {
@@ -193,10 +259,7 @@ PanelWindow {
     if (root.chosenAddress) chooseTimer.restart()
     readyCheck.stop()
     readyGuard.stop()
-    inAnim.stop()
-    outAnim.from = root.progress
-    outAnim.duration = Style.reduceMotion ? 0 : Math.max(Style.duration(140), Style.duration(320) * root.progress)
-    outAnim.restart()
+    root.moveTo(0)
   }
 
   Timer { id: chooseTimer; interval: 60; onTriggered: if (root.chosenAddress) root.chose(root.chosenAddress) }
@@ -205,6 +268,8 @@ PanelWindow {
     root.open = false
     root.closing = false
     root.shown = false
+    root.prepared = false
+    root.moving = false
     root.windows = []
     root.gone = ({})
     root.frozen = ({})
@@ -235,19 +300,6 @@ PanelWindow {
   // Long enough for the last burst to be seen.
   Timer { id: leaveTimer; interval: Style.duration(520); onTriggered: root.leave("") }
 
-  NumberAnimation {
-    id: inAnim
-    target: root; property: "progress"; from: 0; to: 1
-    duration: Style.reduceMotion ? 0 : Style.duration(380)
-    easing.type: Easing.OutCubic
-  }
-  NumberAnimation {
-    id: outAnim
-    target: root; property: "progress"; to: 0
-    duration: Style.reduceMotion ? 0 : Style.duration(320)
-    easing.type: Easing.InOutCubic
-    onFinished: root.finish()
-  }
 
   // The grid. Rows are tried from one up; each window is scaled to fit its
   // cell (never above its own size), and the row count that shows the most
@@ -517,7 +569,7 @@ PanelWindow {
         y: titlebarItem.visible ? titlebarItem.height : 0
         width: parent.width
         height: parent.height - y
-        captureSource: root.open && tile.win && !tile.closed ? tile.win.toplevel : null
+        captureSource: (root.open || root.prepared) && tile.win && !tile.closed ? tile.win.toplevel : null
         live: true
       }
 
