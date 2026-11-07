@@ -248,7 +248,7 @@ Item {
     for (var i = 0; i < windows.length; i++) if (root.bareAddress(windows[i].address) === bare) chosen = windows[i]
     if (chosen && chosen.maximized) {
       var others = windows.filter(function(w) { return root.bareAddress(w.address) !== bare })
-      others.sort(function(a, b) { return a.stack - b.stack })
+      others.sort(function(a, b) { return b.layer - a.layer })
       for (var j = 0; j < others.length; j++)
         steps.push("hl.dsp.window.alter_zorder({ mode = \"bottom\", window = \"address:0x" + root.bareAddress(others[j].address) + "\" })")
     }
@@ -311,7 +311,10 @@ Item {
             icon: root.iconFor({ key: entry ? entry.id : String(c.class || "") }),
             home: Qt.rect(c.at[0] - screen.x, c.at[1] - bar - screen.y, c.size[0], c.size[1] + bar),
             bar: bar,
-            stack: Number(c.focusHistoryID) || 0,
+            // Hyprland lists clients in stacking order, bottom to top: the
+            // copies are stacked the same way, so none starts out behind
+            // a window it was in front of.
+            layer: j,
             maximized: Number(c.fullscreen) === 1,
             toplevel: top.wayland
           })

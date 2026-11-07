@@ -25,7 +25,7 @@ PanelWindow {
   id: root
 
   // { address, title, icon, home (rect incl. titlebar, screen coordinates),
-  //   bar (titlebar height), stack (focus history, 0 = topmost), toplevel }
+  //   bar (titlebar height), layer (stacking order, higher is in front), toplevel }
   property var windows: []
   // hyprbars' titlebar, as the theme has it.
   property var titlebar: ({ height: 0, color: "#353b44", text: "#d2d7da", textSize: 12 })
@@ -457,7 +457,8 @@ PanelWindow {
   ImageParticle {
     system: sparks
     anchors.fill: parent
-    z: 200
+    // Above every window copy.
+    z: 3000
     source: Qt.resolvedUrl("images/particle.png")
     color: Qt.lighter(Commons.Color.accent, 1.35)
     colorVariation: 0.25
@@ -502,7 +503,9 @@ PanelWindow {
       height: home.height + (ch - home.height) * p
       // Stacked as the windows are (most recently focused on top) while they
       // are where the windows are; the picked one on top on the way back.
-      z: chosen ? 100 : (hot ? 60 : 50 - (win ? win.stack : 0))
+      // Stacked as the windows are while they are where the windows are;
+      // the one under the pointer, and the picked one on the way back, on top.
+      z: chosen ? 2000 : (hot && root.progress >= 1 ? 1500 : 100 + (win ? win.layer : 0))
       visible: root.shown && (!closed || pop < 1)
 
       // Popping: a little bigger, then gone, while the sparks fly.
