@@ -491,7 +491,10 @@ PanelWindow {
         Quickshell.execDetached(["hyprctl", "dispatch", "hl.dsp.window.close({ window = \"address:" + target + "\" })"])
     }
   }
-  function openExpose(list, titlebar) {
+  function exposeGestureBegin() { exposeOverlay.gestureBegin() }
+  function exposeGestureMove(travel) { exposeOverlay.gestureMove(travel) }
+  function exposeGestureEnd(cancelled) { exposeOverlay.gestureEnd(cancelled) }
+  function openExpose(list, titlebar, interactive) {
     window.closeMenu()
     // The bar's reserved strip and the dock stay visible through Exposé.
     var holes = []
@@ -505,7 +508,7 @@ PanelWindow {
       var at = window.origin()
       holes.push(Qt.rect(at.x + body.x - 6, at.y + body.y - 6, body.width + 12, body.height + 12))
     }
-    exposeOverlay.show(list, titlebar, holes.slice(0, 3))
+    exposeOverlay.show(list, titlebar, holes.slice(0, 3), interactive === true)
   }
   function closeExpose() { exposeOverlay.leave("") }
   function exposeOpen() { return exposeOverlay.open }

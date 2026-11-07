@@ -175,12 +175,37 @@ Item {
     var dock = root.focusedDock()
     if (!dock) return
     if (dock.exposeOpen()) { dock.closeExpose(); return }
+    root.loadExpose(dock, false)
+  }
+  function loadExpose(dock, interactive) {
     var monitor = Hyprland.focusedMonitor
     var workspace = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
-    if (!root.isFloating(workspace) || exposeProc.running) return
+    if (!root.isFloating(workspace) || exposeProc.running) return false
     exposeProc.workspace = workspace
     exposeProc.dock = dock
+    exposeProc.interactive = interactive
     exposeProc.running = true
+    return true
+  }
+
+  // The three-finger swipe, as the Hyprland hook reports it: "begin", then
+  // "move <travel>" (1 = a full swipe up, negative down), then "end done" or
+  // "end cancel". Exposé follows the fingers on the focused screen.
+  property var gestureDock: null
+  function exposeGesture(message) {
+    var parts = String(message || "").split(" ")
+    if (parts[0] === "begin") {
+      var dock = root.focusedDock()
+      root.gestureDock = dock
+      if (!dock) return
+      dock.exposeGestureBegin()
+      if (!dock.exposeOpen()) root.loadExpose(dock, true)
+    } else if (parts[0] === "move") {
+      if (root.gestureDock) root.gestureDock.exposeGestureMove(parseFloat(parts[1]) || 0)
+    } else if (parts[0] === "end") {
+      if (root.gestureDock) root.gestureDock.exposeGestureEnd(parts[1] === "cancel")
+      root.gestureDock = null
+    }
   }
   // The window picked in Exposé: focused and in front. A maximized window is
   // not raised above windows that were focused over it, so those go below
@@ -201,6 +226,11 @@ Item {
     Util.execDetached(steps.map(function(step) { return "hyprctl dispatch " + Util.shellQuote(step) }).join(" && "))
   }
 
+  function exposeAnyOpen() {
+    var windows = docks.instances
+    for (var i = 0; i < windows.length; i++) if (windows[i].exposeOpen()) return true
+    return false
+  }
   function closeExpose() {
     var windows = docks.instances
     for (var i = 0; i < windows.length; i++) windows[i].closeExpose()
@@ -209,6 +239,7 @@ Item {
     id: exposeProc
     property int workspace: -1
     property var dock: null
+    property bool interactive: false
     command: ["sh", "-c", "hyprctl clients -j; echo '@@nov-dock@@'; for o in bar_height bar_color col.text bar_text_size; do hyprctl getoption plugin:hyprbars:$o -j 2>/dev/null | tr -d '\\n'; echo; done"]
     stdout: StdioCollector {
       onStreamFinished: {
@@ -246,7 +277,7 @@ Item {
             toplevel: top.wayland
           })
         }
-        dock.openExpose(list, titlebar)
+        dock.openExpose(list, titlebar, exposeProc.interactive)
       }
     }
   }
@@ -753,6 +784,14 @@ Item {
       var name = event ? String(event.name) : ""
       // Borderless is global: windows that open on, or move to, a floating
       // workspace follow it. The helper only runs while it is switched on.
+      // Exposé belongs to the workspace it shows: switching workspaces or
+      // screens (also halfway through a swipe) closes it.
+      if ((name === "workspacev2" || name === "focusedmonv2") && root.exposeAnyOpen()) root.closeExpose()
+      if (name === "custom") {
+        var data = String(event.data || "")
+        if (data.indexOf("nov-expose>") === 0) root.exposeGesture(data.slice(11))
+        return
+      }
       if (name === "openwindow" || name === "movewindowv2") {
         var fields = String(event.data || "").split(",")
         var address = fields[0]

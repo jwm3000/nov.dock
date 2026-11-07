@@ -73,8 +73,60 @@ PanelWindow {
   }
   Item { id: hitArea; anchors.fill: parent }
 
-  function show(list, bar, keep) {
+  // Driven by the three-finger swipe: the fingers set the progress while
+  // they move (from where it stood when they touched down), and on lifting
+  // the last direction decides, or the halfway mark when they were still.
+  property bool gestureActive: false
+  property bool gestureEnded: false
+  property bool gestureOpens: false
+  property real gestureFrom: 0
+  property real gestureValue: 0
+  property real gestureStep: 0
+  property bool interactive: false
+
+  function gestureBegin() {
+    root.gestureActive = true
+    root.gestureEnded = false
+    root.gestureStep = 0
+    root.gestureFrom = root.open && root.shown && !root.closing ? root.progress : 0
+    root.gestureValue = root.gestureFrom
+    if (root.open && root.shown && !root.closing) { inAnim.stop(); outAnim.stop() }
+  }
+  function gestureMove(travel) {
+    if (!root.gestureActive) return
+    var value = Math.max(0, Math.min(1, root.gestureFrom + travel))
+    root.gestureStep = value - root.gestureValue
+    root.gestureValue = value
+    if (root.open && root.shown && !root.closing) root.progress = value
+  }
+  function gestureEnd(cancelled) {
+    if (!root.gestureActive) return
+    root.gestureActive = false
+    var opens = !cancelled && (root.gestureStep > 0.002 || (Math.abs(root.gestureStep) <= 0.002 && root.gestureValue > 0.5))
+    if (root.open && root.shown && !root.closing) {
+      root.settle(opens)
+    } else {
+      // Still loading the windows: settle once they are shown.
+      root.gestureEnded = true
+      root.gestureOpens = opens
+    }
+  }
+  // The rest of the way, at the speed of a full animation.
+  function settle(opens) {
+    if (opens) {
+      inAnim.from = root.progress
+      inAnim.duration = Math.max(Style.duration(140), Style.duration(380) * (1 - root.progress))
+      inAnim.restart()
+    } else {
+      root.leave("")
+    }
+  }
+
+  function show(list, bar, keep, gesture) {
     if (root.open || root.closing || !list || list.length === 0) return
+    // A swipe that already ended downwards opens nothing.
+    if (gesture && root.gestureEnded && !root.gestureOpens) { root.gestureEnded = false; return }
+    root.interactive = gesture === true
     outAnim.stop()
     root.titlebar = bar || root.titlebar
     root.holes = keep || []
@@ -105,13 +157,22 @@ PanelWindow {
     readyCheck.stop()
     readyGuard.stop()
     root.shown = true
-    inAnim.restart()
+    if (root.interactive && (root.gestureActive || root.gestureEnded)) {
+      root.progress = root.gestureValue
+      if (root.gestureEnded) { root.gestureEnded = false; root.settle(root.gestureOpens) }
+    } else {
+      inAnim.from = 0
+      inAnim.duration = Style.reduceMotion ? 0 : Style.duration(380)
+      inAnim.restart()
+    }
   }
   Timer { id: readyCheck; interval: 16; repeat: true; onTriggered: if (root.previewsReady()) root.reveal() }
   Timer { id: readyGuard; interval: 160; onTriggered: root.reveal() }
 
   // Leaves Exposé; with an address, that window comes forward on top.
   function leave(address) {
+    // Still loading when asked to go: open nothing.
+    if (root.open && !root.shown && !root.closing) { root.finish(); return }
     if (!root.open || root.closing) return
     root.chosenAddress = address || ""
     // Closing first: Exposé gives up the keyboard, so the picked window can
@@ -123,6 +184,7 @@ PanelWindow {
     readyGuard.stop()
     inAnim.stop()
     outAnim.from = root.progress
+    outAnim.duration = Style.reduceMotion ? 0 : Math.max(Style.duration(140), Style.duration(320) * root.progress)
     outAnim.restart()
   }
 

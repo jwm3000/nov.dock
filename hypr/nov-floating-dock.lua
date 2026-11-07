@@ -184,7 +184,7 @@ end
 -- Exposé: a three-finger swipe up shows every floating window of the
 -- workspace side by side (the dock draws it), a swipe down leaves. The
 -- horizontal three-finger swipe stays Omarchy's workspace switch. Switched
--- off in the bar menu, the swipes do nothing.
+-- off in the bar menu, the swipe does nothing.
 if file then
   local expose_off_file = (os.getenv("XDG_STATE_HOME") or ((os.getenv("HOME") or "") .. "/.local/state")) .. "/nov-dock/no-expose"
 
@@ -194,17 +194,38 @@ if file then
     return true
   end
 
+  -- The overview follows the fingers, as the workspace swipe does: it
+  -- starts as they move up, can be held, pushed back or carried on, and
+  -- settles one way or the other when they lift. The finger travel goes to
+  -- the dock as events on Hyprland's own event stream, which the shell
+  -- reads anyway, rather than as a process per frame. A full swipe is
+  -- Hyprland's workspace swipe distance.
+  local SWIPE = 300
+  local travel, active = 0, false
+  local function send(message)
+    pcall(hl.dispatch, hl.dsp.event("nov-expose>" .. message))
+  end
+
   hl.gesture({
     fingers = 3,
-    direction = "up",
-    action = function()
-      if expose_enabled() then hl.exec_cmd("omarchy-shell -q omarchy.dock expose") end
-    end,
-  })
-  hl.gesture({
-    fingers = 3,
-    direction = "down",
-    action = function() hl.exec_cmd("omarchy-shell -q omarchy.dock exposeClose") end,
+    direction = "vertical",
+    action = {
+      start = function()
+        active = expose_enabled()
+        travel = 0
+        if active then send("begin") end
+      end,
+      update = function(e)
+        if not active or not e or not e.delta then return end
+        travel = travel - (e.delta.y or 0)
+        send(string.format("move %.4f", travel / SWIPE))
+      end,
+      ["end"] = function(e)
+        if not active then return end
+        active = false
+        send((e and e.cancelled) and "end cancel" or "end done")
+      end,
+    },
   })
 
 end
