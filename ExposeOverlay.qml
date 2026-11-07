@@ -31,6 +31,8 @@ PanelWindow {
   property var titlebar: ({ height: 0, color: "#353b44", text: "#d2d7da", textSize: 12 })
   // Screen areas that keep showing what is beneath: the bar and the dock.
   property var holes: []
+  // The space the bar reserves on each edge (left, top, right, bottom).
+  property var reserved: [0, 0, 0, 0]
   // Windows closed from Exposé leave the grid, bursting where they were
   // (frozen holds that last cell).
   property var gone: ({})
@@ -411,7 +413,6 @@ PanelWindow {
       constrainDecode: true
       decodeSize: Qt.size(Math.round(root.width * (root.screen ? root.screen.devicePixelRatio : 1)), Math.round(root.height * (root.screen ? root.screen.devicePixelRatio : 1)))
     }
-    Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.42 * root.progress) }
   }
   Item {
     id: holeMask
@@ -434,6 +435,16 @@ PanelWindow {
     maskEnabled: root.holes.length > 0
     maskSource: holeMask
     maskInverted: true
+    visible: root.shown
+  }
+  // The dimming, over everything but the bar: the dock darkens with the
+  // desktop like the rest, only the bar stays as it is.
+  Rectangle {
+    x: root.reserved[0]
+    y: root.reserved[1]
+    width: root.width - root.reserved[0] - root.reserved[2]
+    height: root.height - root.reserved[1] - root.reserved[3]
+    color: Qt.rgba(0, 0, 0, 0.42 * root.progress)
     visible: root.shown
   }
   // A click on the empty space leaves.

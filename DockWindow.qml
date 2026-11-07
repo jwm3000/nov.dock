@@ -494,17 +494,19 @@ PanelWindow {
   function exposeGestureBegin() { exposeOverlay.gestureBegin() }
   function exposeGestureMove(travel) { exposeOverlay.gestureMove(travel) }
   function exposeGestureEnd(cancelled) { exposeOverlay.gestureEnd(cancelled) }
-  function prepareExpose(list, titlebar) { exposeOverlay.prepare(list, titlebar, window.exposeHoles()) }
+  function prepareExpose(list, titlebar, reserved) { exposeOverlay.prepare(list, titlebar, window.exposeHoles(reserved)) }
   function showPreparedExpose() { window.closeMenu(); exposeOverlay.show(null, null, null, true) }
   function discardExpose() { exposeOverlay.discard() }
-  function openExpose(list, titlebar, interactive) {
+  function openExpose(list, titlebar, interactive, reserved) {
     window.closeMenu()
-    exposeOverlay.show(list, titlebar, window.exposeHoles(), interactive === true)
+    exposeOverlay.show(list, titlebar, window.exposeHoles(reserved), interactive === true)
   }
   // The bar's reserved strip and the dock stay visible through Exposé.
-  function exposeHoles() {
+  function exposeHoles(fresh) {
     var holes = []
-    var reserved = monitor && monitor.lastIpcObject && monitor.lastIpcObject.reserved ? monitor.lastIpcObject.reserved : [0, 0, 0, 0]
+    var reserved = fresh && fresh.length === 4 ? fresh
+      : (monitor && monitor.lastIpcObject && monitor.lastIpcObject.reserved ? monitor.lastIpcObject.reserved : [0, 0, 0, 0])
+    exposeOverlay.reserved = reserved
     var w = window.screen.width, h = window.screen.height
     if (reserved[1] > 0) holes.push(Qt.rect(0, 0, w, reserved[1]))
     if (reserved[3] > 0) holes.push(Qt.rect(0, h - reserved[3], w, reserved[3]))

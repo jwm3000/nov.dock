@@ -233,7 +233,7 @@ Item {
     // Arrived after a swipe that never went up: nothing to show.
     if (root.gestureOver && !root.gestureWantsOpen) { dock.discardExpose(); return }
     root.gestureLoaded = true
-    dock.prepareExpose(data.list, data.titlebar)
+    dock.prepareExpose(data.list, data.titlebar, data.reserved)
     if (root.gestureWantsOpen) dock.showPreparedExpose()
   }
   // The window picked in Exposé: focused and in front. A maximized window is
@@ -271,13 +271,21 @@ Item {
     property bool interactive: false
     // One batched request (about a quarter of the time of five calls); the
     // replies come separated by blank lines.
-    command: ["hyprctl", "--batch", "-j", "clients; getoption plugin:hyprbars:bar_height; getoption plugin:hyprbars:bar_color; getoption plugin:hyprbars:col.text; getoption plugin:hyprbars:bar_text_size"]
+    command: ["hyprctl", "--batch", "-j", "clients; monitors; getoption plugin:hyprbars:bar_height; getoption plugin:hyprbars:bar_color; getoption plugin:hyprbars:col.text; getoption plugin:hyprbars:bar_text_size"]
     stdout: StdioCollector {
       onStreamFinished: {
         var parts = String(text || "").split(/\n\s*\n/).filter(function(part) { return part.trim().length > 0 })
         var clients = []
         try { clients = JSON.parse(parts[0]) } catch (error) { root.exposeLoaded(exposeProc.dock, null); return }
-        var titlebar = root.parseTitlebar(parts.slice(1, 5).map(function(part) { return part.replace(/\n/g, "") }))
+        var titlebar = root.parseTitlebar(parts.slice(2, 6).map(function(part) { return part.replace(/\n/g, "") }))
+        // The space the bar reserves, as it is now: Quickshell's cached
+        // monitor data can lag behind a bar that changed size.
+        var reserved = [0, 0, 0, 0]
+        try {
+          var monitors = JSON.parse(parts[1])
+          for (var m = 0; m < monitors.length; m++)
+            if (exposeProc.dock && monitors[m].name === exposeProc.dock.screen.name && monitors[m].reserved) reserved = monitors[m].reserved
+        } catch (error) {}
         var dock = exposeProc.dock
         if (!dock) return
         var byAddress = {}
@@ -308,8 +316,8 @@ Item {
             toplevel: top.wayland
           })
         }
-        if (exposeProc.interactive) root.exposeLoaded(dock, { list: list, titlebar: titlebar })
-        else dock.openExpose(list, titlebar, false)
+        if (exposeProc.interactive) root.exposeLoaded(dock, { list: list, titlebar: titlebar, reserved: reserved })
+        else dock.openExpose(list, titlebar, false, reserved)
       }
     }
   }
