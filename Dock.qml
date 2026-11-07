@@ -191,17 +191,25 @@ Item {
   // The three-finger swipe, as the Hyprland hook reports it: "begin", then
   // "move <travel>" (1 = a full swipe up, negative down), then "end done" or
   // "end cancel". Exposé follows the fingers on the focused screen.
+  // With Exposé closed, a swipe only starts it once the fingers move up: a
+  // swipe down on the desktop does nothing at all.
   property var gestureDock: null
+  property bool gestureLoading: false
   function exposeGesture(message) {
     var parts = String(message || "").split(" ")
     if (parts[0] === "begin") {
       var dock = root.focusedDock()
       root.gestureDock = dock
+      root.gestureLoading = false
       if (!dock) return
       dock.exposeGestureBegin()
-      if (!dock.exposeOpen()) root.loadExpose(dock, true)
     } else if (parts[0] === "move") {
-      if (root.gestureDock) root.gestureDock.exposeGestureMove(parseFloat(parts[1]) || 0)
+      var travel = parseFloat(parts[1]) || 0
+      var target = root.gestureDock
+      if (!target) return
+      if (!target.exposeOpen() && !root.gestureLoading && travel > 0.02)
+        root.gestureLoading = root.loadExpose(target, true)
+      target.exposeGestureMove(travel)
     } else if (parts[0] === "end") {
       if (root.gestureDock) root.gestureDock.exposeGestureEnd(parts[1] === "cancel")
       root.gestureDock = null
