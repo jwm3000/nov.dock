@@ -243,3 +243,12 @@ if file then
     ["hyprbars:no_bar"] = true,
   })
 end
+
+-- The dock's own overlays (Exposé, the minimize genie, the Alt+Tab glow) do
+-- their own animation. Hyprland's fade for appearing layers would play on
+-- top of it: Exposé would come up see-through for its first frames, the
+-- real windows showing behind the copies. Omarchy turns it off for its own
+-- surfaces the same way.
+if file then
+  hl.layer_rule({ match = { namespace = "^nov-dock-" }, no_anim = true, animation = "none" })
+end

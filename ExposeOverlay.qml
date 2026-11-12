@@ -33,6 +33,8 @@ PanelWindow {
   property var holes: []
   // The space the bar reserves on each edge (left, top, right, bottom).
   property var reserved: [0, 0, 0, 0]
+  // The wallpaper file behind the current-background link.
+  property string wallpaperPath: ""
   // Windows closed from Exposé leave the grid, bursting where they were
   // (frozen holds that last cell).
   property var gone: ({})
@@ -219,6 +221,7 @@ PanelWindow {
   // Waits for every preview's first frame (or a short moment at most), so
   // the copies never show up empty over the real windows.
   function previewsReady() {
+    if (!wallpaper.ready && !wallpaper.failed && root.wallpaperPath) return false
     for (var i = 0; i < tiles.count; i++) {
       var tile = tiles.itemAt(i)
       if (tile && !tile.ready) return false
@@ -405,13 +408,19 @@ PanelWindow {
     anchors.fill: parent
     visible: false
     layer.enabled: true
+    // Decoded from the start, while Exposé is not even mapped, at the size
+    // Omarchy decodes its own background (the screen's width and height in
+    // pixels) and from the same resolved file, so Qt's image cache can hand
+    // over the image Omarchy already decoded. Decoding it on demand left the
+    // backdrop empty for the first frames, with the real windows showing
+    // through behind the copies.
     BackgroundMedia {
       id: wallpaper
       anchors.fill: parent
-      path: Quickshell.env("HOME") + "/.local/state/omarchy/current/background"
+      path: root.wallpaperPath
       cached: true
       constrainDecode: true
-      decodeSize: Qt.size(Math.round(root.width * (root.screen ? root.screen.devicePixelRatio : 1)), Math.round(root.height * (root.screen ? root.screen.devicePixelRatio : 1)))
+      decodeSize: root.screen ? Qt.size(Math.ceil(root.screen.width * root.screen.devicePixelRatio), Math.ceil(root.screen.height * root.screen.devicePixelRatio)) : Qt.size(0, 0)
     }
   }
   Item {

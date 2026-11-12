@@ -479,6 +479,9 @@ PanelWindow {
   ExposeOverlay {
     id: exposeOverlay
     screen: window.screen
+    wallpaperPath: window.dock ? window.dock.wallpaperPath : ""
+    // A theme change brings a new wallpaper: look again after each Exposé.
+    onFinished: if (window.dock) window.dock.refreshWallpaper()
     // The picked window is raised while Exposé still hides the windows, so
     // they are stacked as shown once it is gone.
     onChose: function(address) {

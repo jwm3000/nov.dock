@@ -170,6 +170,15 @@ Item {
       textSize: intOf(values[3]) || 12
     }
   }
+  // The wallpaper file Exposé shows behind the windows: the one the
+  // current-background link points at, as Omarchy resolves it.
+  property string wallpaperPath: ""
+  Process {
+    id: wallpaperProc
+    command: ["readlink", "-f", Quickshell.env("HOME") + "/.local/state/omarchy/current/background"]
+    stdout: StdioCollector { onStreamFinished: { var path = text.trim(); if (path) root.wallpaperPath = path } }
+  }
+  function refreshWallpaper() { if (!wallpaperProc.running) wallpaperProc.running = true }
   property bool exposeLoading: false
   function toggleExpose() {
     var dock = root.focusedDock()
@@ -799,6 +808,7 @@ Item {
   Component.onCompleted: {
     refresh()
     syncItemModel()
+    refreshWallpaper()
     sharpIconScan.running = true
     refreshDownloads()
     reportSnapReserve()
@@ -845,6 +855,7 @@ Item {
       }
       if (name === "configreloaded") {
         root.refresh()
+        root.refreshWallpaper()
         root.reportSnapReserve()
         reserveRetry.restart()
       }
