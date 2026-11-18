@@ -71,14 +71,14 @@ As on macOS, you can scroll any window just by pointing at it. Keyboard focus st
 
 ### Exposé
 
-Swipe up with three fingers on a floating workspace and every floating window flies into a grid, side by side, as in macOS's Exposé. The overview follows your fingers like the workspace swipe: hold it halfway, push it back or carry it on. When you lift them, how far you got decides: from a third of the way on it completes, short of that it goes back to the desktop (and the same, downwards, for leaving). The windows seem to turn into the overview themselves: each preview starts exactly over its window, titlebar included in your theme's colors, while the desktop behind them clears to the wallpaper and dims. The bar stays exactly as it is; the dock stays in place and dims with the rest. The grid keeps each window's proportions and roughly where it was, with a live preview and the app and title below each window.
+Swipe up with three fingers and every window of the workspace flies into a grid, side by side, as in macOS's Exposé. The overview follows your fingers like the workspace swipe: hold it halfway, push it back or carry it on. When you lift them, how far you got decides: from a third of the way on it completes, short of that it goes back to the desktop (and the same, downwards, for leaving). The windows seem to turn into the overview themselves: each preview starts exactly over its window, titlebar included in your theme's colors, while the desktop behind them clears to the wallpaper and dims. The bar stays exactly as it is; the dock stays in place and dims with the rest. The grid keeps each window's proportions and roughly where it was, with a live preview and the app and title below each window.
 
 - **Click a window** to bring it to the front with keyboard focus, maximized windows included.
 - **The X on a window's top right corner** closes that window: it pops, bursts into particles, and the others slide up to fill the gap.
 - **To leave**, swipe down with three fingers (again following your fingers), press Esc, or click the empty space. Switching workspaces closes it too.
 - **From the keyboard**, the arrow keys or Tab pick a window, Enter opens it, and Delete closes it.
 
-The horizontal three-finger swipe stays Omarchy's workspace switch. Exposé is on by default and can be switched off at the top of the bar menu.
+It works on every workspace layout: floating, tiling and scrolling. On tiled workspaces the windows have no titlebar, so their previews have none either. The horizontal three-finger swipe stays Omarchy's workspace switch. Exposé is on by default and can be switched off at the top of the bar menu.
 
 <p align="center"><img src="docs/images/expose.png" alt="Exposé: the windows side by side, and a window bursting into particles after its X was pressed" width="760"></p>
 

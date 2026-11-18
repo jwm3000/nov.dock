@@ -147,8 +147,8 @@ Item {
     onExited: if (root.geometryRequests.length > 0) Qt.callLater(function() { geometryProc.running = true })
   }
 
-  // Exposé: the floating windows of the focused monitor's workspace, side by
-  // side. Only on floating workspaces; window geometry comes straight from
+  // Exposé: the windows of the focused monitor's workspace, side by side, on
+  // floating and tiled workspaces alike. Window geometry comes straight from
   // Hyprland, as the toplevel list does not follow windows being moved.
   // hyprbars' titlebar follows the theme, so its look (height, color, text
   // color and size) is read along with the windows every time Exposé opens.
@@ -189,8 +189,9 @@ Item {
   function loadExpose(dock, interactive) {
     var monitor = Hyprland.focusedMonitor
     var workspace = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
-    if (!root.isFloating(workspace) || exposeProc.running) return false
+    if (workspace <= 0 || exposeProc.running) return false
     exposeProc.workspace = workspace
+    exposeProc.floatingWorkspace = root.isFloating(workspace)
     exposeProc.dock = dock
     exposeProc.interactive = interactive
     exposeProc.running = true
@@ -252,11 +253,14 @@ Item {
     var bare = root.bareAddress(address)
     if (!/^[0-9a-fA-F]+$/.test(bare)) return
     var target = "window = \"address:0x" + bare + "\""
-    var steps = ["hl.dsp.focus({ " + target + " })", "hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })"]
     var chosen = null
     for (var i = 0; i < windows.length; i++) if (root.bareAddress(windows[i].address) === bare) chosen = windows[i]
+    var steps = ["hl.dsp.focus({ " + target + " })"]
+    // Stacking only means something for floating windows; tiled ones sit
+    // side by side and focus is all they need.
+    if (chosen && chosen.floating) steps.push("hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " })")
     if (chosen && chosen.maximized) {
-      var others = windows.filter(function(w) { return root.bareAddress(w.address) !== bare })
+      var others = windows.filter(function(w) { return w.floating && root.bareAddress(w.address) !== bare })
       others.sort(function(a, b) { return b.layer - a.layer })
       for (var j = 0; j < others.length; j++)
         steps.push("hl.dsp.window.alter_zorder({ mode = \"bottom\", window = \"address:0x" + root.bareAddress(others[j].address) + "\" })")
@@ -276,6 +280,7 @@ Item {
   Process {
     id: exposeProc
     property int workspace: -1
+    property bool floatingWorkspace: false
     property var dock: null
     property bool interactive: false
     // One batched request (about a quarter of the time of five calls); the
@@ -304,16 +309,17 @@ Item {
         var list = []
         for (var j = 0; j < clients.length; j++) {
           var c = clients[j]
-          if (!c.mapped || c.hidden || !c.floating || !c.workspace || c.workspace.id !== exposeProc.workspace) continue
+          if (!c.mapped || c.hidden || !c.workspace || c.workspace.id !== exposeProc.workspace) continue
           if (!c.size || c.size[0] < 20 || c.size[1] < 20) continue
           var top = byAddress[root.bareAddress(c.address)]
           if (!top || !top.wayland) continue
           var entry = c.class ? root.entryForAppId(c.class) : null
-          // Floating windows carry hyprbars' titlebar above their content,
-          // except those with a rule against it: apps with a titlebar of their
-          // own, and Spotifast in Winamp mode. Tags set by a rule end in "*".
+          // On floating workspaces, windows carry hyprbars' titlebar above
+          // their content, except those with a rule against it: apps with a
+          // titlebar of their own, and Spotifast in Winamp mode. Tags set by
+          // a rule end in "*". Tiled workspaces have no titlebars at all.
           var tags = (c.tags || []).map(function(tag) { return String(tag).replace(/\*$/, "") })
-          var bar = tags.indexOf("nov-dock-no-titlebar") >= 0 || tags.indexOf("spotifast-winamp") >= 0 ? 0 : titlebar.height
+          var bar = !exposeProc.floatingWorkspace || tags.indexOf("nov-dock-no-titlebar") >= 0 || tags.indexOf("spotifast-winamp") >= 0 ? 0 : titlebar.height
           list.push({
             address: c.address,
             title: String(c.title || c.class || ""),
@@ -325,6 +331,7 @@ Item {
             // a window it was in front of.
             layer: j,
             maximized: Number(c.fullscreen) === 1,
+            floating: !!c.floating,
             toplevel: top.wayland
           })
         }

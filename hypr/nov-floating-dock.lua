@@ -181,8 +181,8 @@ if file then
   end
 end
 
--- Exposé: a three-finger swipe up shows every floating window of the
--- workspace side by side (the dock draws it), a swipe down leaves. The
+-- Exposé: a three-finger swipe up shows every window of the workspace,
+-- floating or tiled, side by side (the dock draws it), a swipe down leaves. The
 -- horizontal three-finger swipe stays Omarchy's workspace switch. Switched
 -- off in the bar menu, the swipe does nothing.
 if file then

@@ -7,7 +7,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 
-// Exposé, after macOS: every floating window of the workspace, side by side.
+// Exposé, after macOS: every window of the workspace, side by side.
 //
 // The windows seem to turn into the overview themselves. Each preview starts
 // exactly over its window, titlebar included, stacked as the windows are,
